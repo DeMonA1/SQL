@@ -15,6 +15,7 @@
 --    jul int, aug int, sep int, oct int, nov int, dec int
 --) ORDER BY YEAR;
 
+
 --SELECT * FROM crosstab(
 --    'SELECT extract(year from starts) as year,
 --        extract(month from starts) as month, count(*)
@@ -27,16 +28,17 @@
 --    jul int, aug int, sep int, oct int, nov int, dec int
 --) ORDER BY year;
 
-SELECT * FROM crosstab(
-    'SELECT EXTRACT(WEEK FROM starts) as week,
-            extract(ISODOW from starts) as day, 
-            count(*)
-    FROM events
-    GROUP BY week, day',
-    'SELECT * FROM generate_series(1, 7)'
-) AS (week int,
-        mon int, tu int, we int, thu int, fri int, sa int, su int
-) ORDER BY week;
+
+--SELECT * FROM crosstab(
+--    'SELECT EXTRACT(WEEK FROM starts) as week,
+--            extract(ISODOW from starts) as day, 
+--            count(*)
+--    FROM events
+--    GROUP BY week, day',
+--    'SELECT * FROM generate_series(1, 7)'
+--) AS (week int,
+--        mon int, tu int, we int, thu int, fri int, sa int, su int
+--) ORDER BY week;
 
 
 ----------TRIGGER-----------------------
