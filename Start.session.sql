@@ -1,0 +1,181 @@
+--SELECT snum, sname, city, comm FROM Salespeople;
+--SELECT * FROM Salespeople;
+--SELECT sname, comm FROM Salespeople;
+--SELECT odate, snum, onum, amt FROM Orders;
+-----------Disctinct---------------
+--SELECT DISTINCT snum FROM Orders;
+--SELECT sname, city FROM Salespeople WHERE city='London';
+--SELECT * FROM Customers WHERE rating = 100
+--SELECT onum, amt, odate FROM Orders;
+--SELECT * FROM Customers WHERE snum=1001;
+--SELECT city, sname, snum, comm FROM Salespeople;
+--------------WHERE------------------------
+--SELECT rating, cname FROM Customers WHERE city='San Jose';
+--SELECT DISTINCT snum FROM Orders;
+------------WHERE OR NOT AND --------------------------
+--SELECT * FROM Customers WHERE rating >= 200;
+--SELECT * FROM Customers WHERE city = 'San Jose' AND rating > 200;
+--SELECT * FROM Customers WHERE city = 'San Jose' OR rating > 200;
+--SELECT * FROM Customers WHERE city = 'San Jose' OR NOT rating > 200;
+--SELECT * FROM Customers WHERE NOT city = 'San Jose' OR rating > 200;
+--SELECT * FROM Customers WHERE NOT (city = 'San Jose' OR rating < 200);
+--SELECT * FROM Orders WHERE NOT ((odate = '10/03/1990' AND snum > 1002) OR amt > 2000.00);
+--SELECT * FROM Orders WHERE amt > 1000;
+--SELECT sname, city FROM Salespeople WHERE comm > 0.10;
+--SELECT * FROM Customers WHERE rating <= 100 AND NOT city = 'Rome';
+--SELECT * FROM Orders WHERE (amt < 1000 OR NOT (odate = '10/03/1990' AND cnum > 2003));
+--SELECT * FROM Orders WHERE NOT ((odate = '10/03/1990' OR snum > 1006) AND amt > 1500);
+--SELECT * FROM Salespeople WHERE city = 'Barcelona' OR city = 'London';
+---------------------IN BETWEEN LIKE---------------------------------
+--SELECT * FROM Salespeople WHERE city in ('Barcelona', 'London');
+--SELECT * FROM Customers WHERE snum IN (1001, 1007, 1004);
+--SELECT * FROM Salespeople WHERE comm BETWEEN .10 AND .12;
+--SELECT * FROM Salespeople WHERE (comm BETWEEN .10 AND .12) AND NOT comm IN (.10, .12);
+--SELECT * FROM Customers WHERE cname BETWEEN 'A' AND 'G';
+--SELECT * FROM Customers WHERE cname LIKE 'G%';
+--SELECT * FROM Salespeople WHERE sname LIKE 'P__l%';
+----------------------ESCAPE--------------
+--SELECT * FROM Salespeople WHERE sname LIKE '%/_%'ESCAPE'/';
+--SELECT * FROM Salespeople WHERE sname LIKE '%/_//%'ESCAPE'/';
+----------------------NULL----------------------
+--SELECT * FROM Customers WHERE city IS NULL;
+--SELECT * FROM Customers WHERE city IS NOT NULL;
+--SELECT * FROM Customers WHERE NOT city IS NULL;
+--SELECT * FROM Salespeople WHERE city NOT IN ('London', 'San Jose');
+--SELECT * FROM Salespeople WHERE NOT city IN ('London', 'San Jose');
+--SELECT * FROM Orders WHERE odate = '10/03/1990' OR odate = '10/04/1990';
+--SELECT * FROM Orders WHERE odate IN ('10/03/1990', '10/04/1990');
+--SELECT * FROM Customers WHERE snum IN (SELECT snum FROM Salespeople WHERE sname IN ('Peel', 'Motika'))
+--SELECT * FROM Customers WHERE cname BETWEEN 'A' AND 'H';
+--SELECT * FROM Customers WHERE cname LIKE 'C%';
+--SELECT * FROM Orders WHERE amt IS NULL OR amt = 0;
+---------------------FUNCTIONS--------------------------
+--SELECT SUM(amt) FROM Orders;
+--SELECT AVG(amt) FROM Orders;
+--SELECT COUNT (DISTINCT snum) FROM Orders;
+--SELECT COUNT (*) FROM Customers;
+--SELECT COUNT (ALL rating) FROM Customers;
+------------------GROUP BY, HAVING--------------------------------
+--SELECT snum, MAX(amt) FROM Orders GROUP BY snum;
+--SELECT snum, odate, MAX(amt) FROM Orders GROUP BY snum, odate;
+--SELECT snum, odate, MAX(amt) FROM Orders GROUP BY snum, odate HAVING MAX(amt) > 3000.00;
+--SELECT snum, MAX(amt) FROM Orders WHERE odate = '10/03/1990' GROUP BY snum;
+--SELECT snum, MAX(amt) FROM Orders GROUP BY snum HAVING snum IN (1002, 1007);
+--SELECT COUNT(odate) FROM Orders WHERE odate = '10/03/1990';
+--SELECT COUNT(DISTINCT city) FROM Customers WHERE city IS NOT NULL;
+--SELECT *, MIN(amt) FROM Orders GROUP BY cnum;
+--SELECT *, MIN(cname) FROM Customers WHERE cname LIKE 'G%';
+--SELECT *, MAX(rating) FROM Customers GROUP BY city;
+--SELECT COUNT(DISTINCT odate), snum FROM Orders GROUP BY snum HAVING COUNT(DISTINCT odate) >= 4;
+--SELECT COUNT(DISTINCT snum), odate FROM Orders GROUP BY odate;
+----------------ORDER BY------------------------------
+--SELECT snum, sname, city, comm * 100 FROM Salespeople;
+--SELECT snum, sname, city, '%', comm * 100 FROM Salespeople;
+--SELECT 'For', odate, '. there are', COUNT(DISTINCT onum), 'orders.' FROM Orders GROUP BY odate;
+--SELECT * FROM Orders ORDER BY cnum DESC;
+--SELECT * FROM Orders ORDER BY cnum DESC, amt DESC;
+--SELECT snum, odate, MAX(amt) FROM Orders GROUP BY snum, odate ORDER BY snum;
+--SELECT sname, comm FROM Salespeople ORDER BY 2 DESC;
+--SELECT snum, COUNT(DISTINCT onum) FROM Orders GROUP BY snum ORDER BY 2 DESC;
+--SELECT snum, COUNT(DISTINCT onum) FROM Orders GROUP BY snum ORDER BY COUNT(DISTINCT onum) DESC;
+--SELECT onum, snum, amt * 0.12 FROM Orders ORDER BY 3;
+--SELECT 'For the city ', city, 'the highest rating is: ', MAX(rating) FROM Customers GROUP BY city;
+--SELECT rating, cname, cnum  FROM Customers ORDER BY rating DESC;
+--SELECT odate, SUM(amt) FROM Orders GROUP BY odate ORDER BY 2 DESC;
+-----------------------2 MORE TABLE------------------------------
+--SELECT Customers.cname, Salespeople.sname, Salespeople.city FROM Salespeople, Customers WHERE Salespeople.city = Customers.city;
+--SELECT Customers.cname, Salespeople.sname FROM Customers, Salespeople WHERE Salespeople.snum = Customers.snum;
+--SELECT sname, cname FROM Salespeople, Customers WHERE sname < cname AND rating < 200;
+--SELECT onum, cname, Orders.cnum, Orders.snum FROM Salespeople, Customers, Orders
+------WHERE Customers.city <> Salespeople.city AND Orders.cnum = Customers.cnum AND Orders.snum = Salespeople.snum;
+--SELECT Orders.onum, Customers.cname FROM Orders, Customers WHERE Customers.cnum = Orders.cnum;
+--SELECT Orders.onum, Customers.cname, Salespeople.sname FROM Orders, Customers, Salespeople
+------WHERE Orders.cnum = Customers.cnum AND Customers.snum = Salespeople.snum;
+--SELECT Customers.cname, Salespeople.sname, Salespeople.comm FROM Customers, Salespeople
+------WHERE Customers.snum = Salespeople.snum AND Salespeople.comm > 0.12;
+--SELECT Orders.onum, Salespeople.sname, Orders.amt * Salespeople.comm AS Comm FROM Salespeople, Orders, Customers
+------WHERE Orders.snum = Salespeople.snum AND Orders.cnum = Customers.cnum AND Customers.rating > 100; 
+--------------------------TWO EQUAL TABLES-------------------------
+--SELECT First.cname, Second.cname AS cname_2, First.rating FROM Customers First, Customers Second
+------WHERE First.rating = Second.rating;
+--SELECT first.cname, second.cname AS cname_2, first.rating FROM Customers first, Customers second
+------WHERE first.rating = second.rating AND first.cname < second.cname;
+--SELECT first.onum, first.cnum, first.snum, second.onum AS onum_2, second.cnum AS cnum_2, second.snum AS snum_2
+------FROM Orders first, Orders second
+------WHERE first.cnum = second.cnum AND first.snum <> second.snum;
+--SELECT a.cnum, b.cnum AS cnum2, c.cnum AS cnum3 FROM Customers a, Customers b, Customers C
+------WHERE a.rating = 100 AND b.rating = 200 AND c.rating = 300;
+--SELECT b.cnum, b.cname FROM Customers a, Customers b WHERE a.snum = 1002 AND b.city = a.city;
+--SELECT sname, Salespeople.snum, first.cname, second.cname AS cname1
+-----FROM Customers first, Customers second, Salespeople
+-----WHERE first.snum = second.snum AND Salespeople.snum = first.snum AND first.cnum < second.cnum;
+--SELECT s1.sname, s2.sname AS sname2, s1.city FROM Salespeople s1, Salespeople s2
+-----WHERE s1.city = s2.city AND s1.sname < s2.sname;
+--SELECT cname, o1.onum, o2.onum AS onum2 FROM Customers, Orders o1, Orders o2
+-----WHERE Customers.cnum = o1.cnum AND Customers.cnum = o2.cnum AND o1.onum < o2.onum;
+--SELECT c1.cname, c1.city FROM Customers c1, Customers c2 
+-----WHERE c2.cnum = 2001 AND c1.rating = c2.rating;
+-----------------NESTING--------------------------
+--SELECT * FROM Orders WHERE snum = (SELECT snum FROM Salespeople WHERE sname = 'Motika');
+--SELECT * FROM Orders WHERE snum = (SELECT DISTINCT snum FROM Orders WHERE cnum = 2001);
+--SELECT * FROM Orders WHERE amt > (SELECT AVG(amt) FROM Orders WHERE odate = '10/04/1990');
+--SELECT AVG(comm) FROM Salespeople WHERE city = 'London';
+--SELECT * FROM Orders WHERE snum IN (SELECT snum FROM Salespeople WHERE city = 'London');
+--SELECT onum, amt, odate, cnum, Orders.snum FROM Orders, Salespeople
+-----WHERE Orders.snum = Salespeople.snum AND Salespeople.city = 'London';
+--SELECT onum, amt, odate FROM Orders WHERE snum = (SELECT DISTINCT snum FROM Orders WHERE cnum = 2001);
+--SELECT comm FROM Salespeople WHERE snum IN (SELECT snum FROM Customers WHERE city = 'London');
+--SELECT * FROM Customers WHERE cnum = (SELECT snum + 1000 FROM Salespeople WHERE sname = 'Serres');
+--SELECT rating, COUNT(DISTINCT cnum) FROM Customers GROUP BY rating
+-----HAVING rating > (SELECT AVG(rating) FROM Customers WHERE city = 'San Jose');
+--SELECT * FROM Orders WHERE cnum = (SELECT cnum FROM Customers WHERE cname = 'Cisneros');
+--SELECT cname, rating FROM Customers WHERE cnum IN 
+-----(SELECT cnum AS count FROM Orders GROUP BY cnum 
+-----HAVING COUNT(cnum) > (SELECT AVG(count) FROM (SELECT COUNT(cnum) AS count FROM Orders GROUP BY cnum)));
+--SELECT sname, s1.snum, sum FROM 
+-----(SELECT snum, SUM(amt) AS Sum FROM Orders GROUP BY snum HAVING sum > (SELECT MAX(amt) FROM Orders)) AS s1, Salespeople
+-----WHERE Salespeople.snum = s1.snum;
+-------------------------------RELATED SUBQUERIES-------------------------------------
+--SELECT * FROM Customers first, Orders second 
+--WHERE first.cnum = second.cnum AND second.odate = '10/03/1990'; 
+--SELECT snum, sname FROM Salespeople main WHERE 1 < 
+-----(SELECT COUNT(*) FROM Customers WHERE snum = main.snum);
+--SELECT * FROM Orders main WHERE NOT snum = (SELECT snum FROM Customers WHERE cnum = main.cnum);
+--SELECT * FROM Orders outr WHERE amt > 
+-----(SELECT AVG(amt) FROM Orders iner WHERE iner.cnum = outr.cnum);
+--SELECT * FROM Customers outr WHERE '10/03/1990' IN 
+----(SELECT odate FROM Orders iner WHERE outr.cnum = iner.cnum);
+--SELECT * FROM Orders outr WHERE amt >= 
+-----(SELECT AVG(amt) FROM Orders iner WHERE iner.cnum = outr.cnum);
+--SELECT odate, SUM(amt) FROM Orders a GROUP BY odate HAVING
+-----SUM(amt) > (SELECT 2000.00 + MAX(amt) FROM Orders b WHERE a.odate = b.odate);
+--SELECT cnum, cname FROM Customers c1 WHERE rating = 
+-----(SELECT MAX(rating) FROM Customers c2 WHERE c1.city = c2.city);
+--SELECT snum, sname FROM Salespeople s WHERE city NOT IN
+-----(SELECT city FROM Customers c WHERE s.snum = c.snum); 
+------------------------EXISTS---------------------------
+--SELECT cnum, cname, city FROM Customers WHERE EXISTS
+-----(SELECT * FROM Customers WHERE city = 'San Jose');
+--SELECT DISTINCT snum FROM Customers outr WHERE EXISTS
+-----(SELECT * FROM Customers iner WHERE iner.snum = outr.snum AND iner.cnum <> outr.cnum);
+--SELECT DISTINCT s1.snum, sname, s1.city FROM Salespeople s1, Customers c1
+-----WHERE EXISTS (SELECT * FROM Customers c2 WHERE c1.snum = c2.snum AND c1.cnum <> c2.cnum)
+-----AND s1.snum = c1.snum;
+--SELECT DISTINCT snum FROM Customers outr WHERE NOT EXISTS
+-----(SELECT * FROM Customers iner WHERE iner.snum = outr.snum AND iner.cnum <> outr.cnum);
+--SELECT * FROM Salespeople s1 WHERE EXISTS 
+-----(SELECT * FROM Customers c1 WHERE s1.snum = c1.snum AND 1 <
+-----(SELECT COUNT(*) FROM Orders WHERE Orders.cnum = c1.cnum));
+--SELECT * FROM Salespeople s1 WHERE EXISTS
+-----(SELECT * FROM Customers c1 WHERE s1.snum = c1.snum AND rating > 300);
+--SELECT * FROM Salespeople s1, Customers c1 WHERE
+-----s1.snum = c1.snum AND rating > 300;
+--SELECT * FROM Salespeople s1 WHERE EXISTS
+-----(SELECT * FROM Customers c1 WHERE s1.city = c1.city AND s1.snum <> c1.snum);
+--SELECT * FROM Customers c1 WHERE EXISTS
+-----(SELECT * FROM Salespeople s1 WHERE s1.snum = c1.snum AND EXISTS
+-----(SELECT * FROM Orders o1 WHERE o1.snum = c1.snum AND o1.cnum <> c1.cnum));
+---------------------ANY SOME ALL------------------------------
+--SELECT * FROM Salespeople WHERE city = ANY(SELECT city FROM Customers);
+--SELECT * FROM Salespeople WHERE city IN (SELECT city FROM Customers);
+--SELECT * FROM Salespeople WHERE sname < ANY(SELECT cname FROM Customers);
