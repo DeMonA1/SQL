@@ -1,3 +1,5 @@
+-- Active: 1727185462921@@127.0.0.1@5432@demo@bookings
+
 --CREATE TABLE aircrafts1 (
 --    aircraft_code char(3) NOT NULL,
 --    model text NOT NULL,
@@ -72,7 +74,7 @@
 --DELETE FROM aircrafts1 WHERE range <= 1;
 
 
-
+-----------TYPE OF DATA------------------------------
 
 --SELECT 0.1::REAL * 10 = 1.0::REAL; --FALSE
 
@@ -81,5 +83,199 @@
 
 --SELECT $$PGDAY'1709/$$;
 
-SELECT E'PGDAY\'17';
-SELECT
+--SELECT E'PGDAY\'17';
+-----------------------TIME--------------------------
+SELECT '2016-09-12'::date;
+SELECT 'Sep 12, 2016'::date;
+SELECT CURRENT_DATE;
+SELECT to_char(CURRENT_DATE, 'dd-mm-yyyy');
+SELECT '21:15'::time;
+SELECT '21:15:26'::time;
+SELECT '10:15:16 am'::time;
+SELECT '10:15:16 pm'::time;
+SELECT current_time;
+SELECT timestamp with time zone '2016-09-21 22:15:12';
+SELECT TIMESTAMP '2016-09-21 22:25:35';
+SELECT current_timestamp;
+
+SELECT '1 year 2 months ago'::interval;
+SELECT 'P0001-02-03T04:05:06'::interval;
+SELECT ('2016-09-16'::timestamp - '2016-09-01'::timestamp)::INTERVAL;
+SELECT (date_trunc('hour', current_timestamp));
+SELECT extract('mon' FROM timestamp '1999-11-27 12:34:56.123459');
+
+CREATE TABLE databases (is_open_source boolean, dbms_name text);
+
+INSERT INTo databases VALUES (TRUE, 'PostgreSQL');
+INSERT INTo databases VALUES (FALSE, 'Oracle');
+INSERT INTo databases VALUES (TRUE, 'MySQL');
+INSERT INTo databases VALUES (FALSE, 'MS SQL Server');
+SELECT * FROM databases;
+SELECT * FROM databases WHERE is_open_source;
+
+----------------ARRAY--------------------------
+CREATE TABLE pilots (
+  pilot_name text,
+  schedule INTEGER[]
+);
+INSERT INTO pilots
+VALUES ('Ivan', '{1,2,3,5,6,7}'::INTEGER[]),
+        ('Petr', '{1,2,5,7}'::INTEGER[]),
+        ('Pavel','{2,5}'::INTEGER[]),
+        ('Boris', '{3,5,6}'::INTEGER[]);
+SELECT * FROM pilots;
+UPDATE pilots SET schedule = schedule || 7
+WHERE pilot_name = 'Boris';
+UPDATE pilots SET schedule = array_append(schedule, 6)
+WHERE pilot_name = 'Pavel';
+UPDATE pilots SET schedule = array_prepend(1, schedule)
+WHERE pilot_name = 'Pavel';
+UPDATE pilots SET schedule = array_remove(schedule, 5)
+WHERE pilot_name = 'Ivan';
+UPDATE pilots SET schedule[1] = 2, schedule[2] = 3
+WHERE pilot_name = 'Petr';
+--or like that
+UPDATE pilots SET schedule[1:2] = array[2,3]
+WHERE pilot_name = 'Petr';
+UPDATE pilots SET schedule = array_remove(schedule, 2)
+WHERE pilot_name = 'Ivan';
+SELECT * FROM pilots;
+
+SELECT * FROM pilots
+WHERE array_position(schedule, 3) IS NOT NULL;
+SELECT * FROM pilots
+WHERE schedule @> '{1, 7}'::INTEGER[];
+SELECT * FROM pilots
+WHERE schedule && ARRAY[2, 5];
+SELECT * FROM pilots
+WHERE NOT (schedule && array[2, 5]);
+SELECT unnest(schedule) AS days_of_week FROM pilots
+WHERE pilot_name = 'Ivan';
+
+-------------------JSON---------------------
+CREATE TABLE pilot_hobbies (
+  pilot_name TEXT,
+  hobbies JSONB
+);
+INSERT INTO pilot_hobbies
+VALUES  ('Ivan',
+        '{"sports": ["football", "swimming"],
+          "home_lib": true, "trips": 3}'::jsonb),
+        ('Petr',
+        '{"sports":["tennis", "swimming"],
+        "home_lib": true, "trips": 2}'::jsonb),
+        ('Pavel',
+        '{"sports":["swimming"],
+        "home_lib": false, "trips": 4}'::jsonb),
+        ('Boris',
+        '{"sports":["football", "swimming", "tennis"],
+        "home_lib": true, "trips": 0}'::jsonb);
+SELECT * FROM pilot_hobbies;
+
+SELECT * FROM pilot_hobbies
+WHERE hobbies @> '{"sports": ["football"]}'::jsonb;
+SELECT pilot_name, hobbies->'sports' AS sports FROM pilot_hobbies
+WHERE hobbies->'sports' @> '["football"]'::jsonb;
+SELECT count(*) FROM pilot_hobbies
+WHERE hobbies ? 'sport';
+SELECT count(*) FROM pilot_hobbies
+WHERE hobbies ? 'sports';
+UPDATE pilot_hobbies SET hobbies = hobbies || '{"sports": ["hockey"]}'
+WHERE pilot_name = 'Boris';
+SELECT pilot_name, hobbies FROM pilot_hobbies
+WHERE pilot_name = 'Boris';
+UPDATE pilot_hobbies SET hobbies = jsonb_set(hobbies, '{sports, 1}', '"football"')
+WHERE pilot_name = 'Boris';
+SELECT pilot_name, hobbies FROM pilot_hobbies
+WHERE pilot_name = 'Boris'; 
+
+
+---------------------------------------------------
+CREATE TABLE test_numeric (
+  measurment NUMERIC(5, 2),
+  descrtiption TEXT
+);
+INSERT INTO test_numeric
+VALUES (999.9999, 'Some kind of measurment ');
+INSERT INTO test_numeric
+VALUES (999.9009, 'One more measurment ');
+INSERT INTO test_numeric
+VALUES (999.1111, 'And one more measurment ');
+INSERT INTO test_numeric
+VALUES (998.9999, 'And one more ');
+
+DROP TABLE test_numeric;
+
+CREATE TABLE test_numeric (
+  measurement NUMERIC,
+  description TEXT
+);
+INSERT INTO test_numeric
+VALUES (1234567890.0987654321, 'Precision of 20 characters, scale of 10 characters');
+INSERT INTO test_numeric
+VALUES (1.5, 'Precision of 2 characters, scale of 1 character');
+INSERT INTO test_numeric
+VALUES (0.12345678901234567890, 'Precision of 21 characters, scale of 20 characters');
+INSERT INTO test_numeric
+VALUES (1234567890, 'Precision of 20 characters, scale of 0 characters (integer)');
+INSERT INTO test_numeric
+VALUES (1234567890.0987654321, 'Precision of 20 characters, scale of 10 characters');
+INSERT INTO test_numeric
+VALUES (1.5, 'Precision of 2 characters, scale of 1 character');
+INSERT INTO test_numeric
+VALUES (0.12345678901234567890, 'Precision of 21 characters, scale of 20 characters');
+INSERT INTO test_numeric
+VALUES (1234567890, 'Precision of 20 characters, scale of 0 characters (integer)');
+SELECT * FROM test_numeric;
+
+SELECT 'NaN'::NUMERIC > 10000; --true
+
+SELECT '5e-324'::double PRECISION > '4e-324'::double PRECISION;
+SELECT '4e-324'::double PRECISION;
+SELECT '4e307'::double PRECISION >= '4e307'::double PRECISION; -- true
+SELECT '1e-37'::REAL >= '1e-37'::REAL; --true
+SELECT '1e37'::REAL <= '1e37'::REAL; -- true
+SELECT '-Infinity'::double PRECISION <= 1e-308; -- true
+SELECT 0.0 * 'Inf'::REAL;
+SELECT 'NaN'::REAL > 'Inf'::REAL; --true
+
+CREATE TABLE test_serial (
+  id SERIAL,
+  name TEXT
+);
+INSERT INTO test_serial (name) VALUES ('Cherry');
+INSERT INTO test_serial (name) VALUES ('Pear');
+INSERT INTO test_serial (name) VALUES ('Green');
+SELECT * FROM test_serial;
+INSERT INTO test_serial (id, name) VALUES (10, 'Cool');
+INSERT INTO test_serial (name) VALUES ('Meadow');
+DROP TABLE test_serial;
+CREATE TABLE test_serial (
+  id SERIAL PRIMARY KEY,
+  name TEXT
+);
+
+INSERT INTO test_serial (name) VALUES ('Cherry');
+INSERT INTO test_serial (id, name) VALUES (2, 'Cool');
+INSERT INTO test_serial (name) VALUES ('Pear');
+INSERT INTO test_serial (name) VALUES ('Green');
+DELETE FROM test_serial WHERE id=4;
+INSERT INTO test_serial (name) VALUES ('Meadow');
+SELECT * FROM test_serial;
+
+SELECT current_time, current_timestamp, '22:11:11.222'::interval;
+SELECT current_time::time(0), current_timestamp::time(0), '22:11:11.222'::interval(0);
+SELECT current_time::time(3), current_timestamp::time(3), '22:11:11.222'::interval(3);
+SHOW datestyle;
+SELECT '2016-05-19'::date;
+SELECT '05-23-2019'::date;
+SELECT '18-05-2019'::date;
+SET datestyle TO 'DMY';
+SET datestyle TO DEFAULT;
+SELECT '2016-05-19'::timestamp;
+SELECT '05-23-2019'::timestamp;
+SELECT '18-05-2019'::timestamp;
+SET datestyle TO 'Postgres, DMY';
+SET datestyle TO 'German';
+SET datestyle TO 'SQL';
+SELECT current_timestamp;
