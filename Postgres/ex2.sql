@@ -654,3 +654,230 @@ UPDATE pilot_hobbies SET hobbies = hobbies || '{"exp" : 5}'
 WHERE pilot_name = 'Boris';
 UPDATE pilot_hobbies SET hobbies = hobbies - 'exp'
 WHERE pilot_name = 'Boris';
+
+
+
+
+
+CREATE TABLE airports1 (
+    airport_code char(3) NOT NULL,
+    airport_name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    longitude FLOAT NOT NULL,
+    latitude FLOAT NOT NULL,
+    timezone TEXT NOT NULL,
+    PRIMARY KEY (airport_code)
+);
+COMMENT ON COLUMN airports1.city  IS 'Cicty';
+CREATE TABLE flights1 (
+    flight_id SERIAL NOT NULL,
+    flight_no char(6) NOT NULL,
+    scheduled_departure TIMESTAMP NOT NULL,
+    scheduled_arrival TIMESTAMP NOT NULL,
+    departure_airport CHAR(3) NOT NULL,
+    arrival_airport CHAR(3) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    aircraft_code CHAR(3) NOT NULL,
+    actual_departure TIMESTAMP,
+    actual_arrival TIMESTAMP,
+    CHECK (scheduled_arrival > scheduled_departure),
+    CHECK (status IN ('On Time', 'Delayed', 'Departed',
+                    'Arrived', 'Scheduled', 'Cancelled')),
+    CHECK (actual_arrival IS NULL OR
+            (actual_departure IS NOT NULL AND
+            actual_arrival IS NOT NULL AND
+            actual_arrival > actual_departure)),
+    PRIMARY KEY (flight_id),
+    UNIQUE (flight_no, scheduled_departure),
+    FOREIGN KEY (aircraft_code) REFERENCES aircrafts1(aircraft_code),
+    FOREIGN KEY (arrival_airport) REFERENCES airports1(airport_code),
+    FOREIGN KEY (departure_airport) REFERENCES airports1(airport_code)
+);
+CREATE TABLE bookings1 (
+    book_ref CHAR(6) NOT NULL,
+    book_date TIMESTAMP NOT NULL,
+    total_amount NUMERIC(10, 2) NOT NULL,
+    PRIMARY KEY(book_ref)
+);
+CREATE TABLE tickets1 (
+    ticket_no CHAR(13) NOT NULL,
+    book_ref CHAR(6) NOT NULL,
+    passenger_id VARCHAR(20) NOT NULL,
+    passenger_name TEXT NOT NULL,
+    contact_data JSONB,
+    PRIMARY KEY (ticket_no),
+    FOREIGN KEY (book_ref) REFERENCES bookings1 (book_ref)
+);
+CREATE TABLE ticket_flights (
+    ticket_no CHAR(13) NOT NULL,
+    flight_id INTEGER NOT NULL,
+    fare_conditions VARCHAR(10) NOT NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    CHECK (amount >= 0),
+    CHECK (fare_conditions IN ('Economy', 'Comfort', 'Business')),
+    PRIMARY KEY (ticket_no, flight_id),
+    FOREIGN KEY (flight_id) REFERENCES flights(flight_id),
+    FOREIGN KEY (ticket_no) REFERENCES tickets(ticket_no)
+);
+CREATE TABLE boarding_passes (
+    ticket_no CHAR(13) NOT NULL,
+    flight_id INTEGER NOT NULL,
+    boarding_no INTEGER NOT NULL,
+    seat_no VARCHAR(4) NOT NULL,
+    PRIMARY KEY (ticket_no, flight_id),
+    UNIQUE (flight_id, boarding_no),
+    UNIQUE (flight_id, seat_no),
+    FOREIGN KEY (ticket_no, flight_id) 
+        REFERENCES ticket_flights(ticket_no, flight_id)
+);
+ALTER TABLE aircrafts1 ADD COLUMN speed INTEGER;
+UPDATE aircrafts1 SET speed = 807 WHERE aircraft_code = '733';
+UPDATE aircrafts1 SET speed = 851 WHERE aircraft_code = '763';
+UPDATE aircrafts1 SET speed = 905 WHERE aircraft_code = '773';
+UPDATE aircrafts1 SET speed = 840 WHERE aircraft_code IN ('319', '320', '321');
+UPDATE aircrafts1 SET speed = 786 WHERE aircraft_code = 'CR2';
+UPDATE aircrafts1 SET speed = 341 WHERE aircraft_code = 'CN1';
+UPDATE aircrafts1 SET speed = 830 WHERE aircraft_code = 'SU9';
+SELECT * FROM aircrafts1;
+ALTER TABLE aircrafts1 ALTER COLUMN speed SET NOT NULL;UPDATE aircrafts1 SET speed = 807 WHERE aircraft_code = '733';
+UPDATE aircrafts1 SET speed = 851 WHERE aircraft_code = '763';
+UPDATE aircrafts1 SET speed = 905 WHERE aircraft_code = '773';
+UPDATE aircrafts1 SET speed = 840 WHERE aircraft_code IN ('319', '320', '321');
+UPDATE aircrafts1 SET speed = 786 WHERE aircraft_code = 'CR2';
+UPDATE aircrafts1 SET speed = 341 WHERE aircraft_code = 'CN1';
+UPDATE aircrafts1 SET speed = 830 WHERE aircraft_code = 'SU9';
+UPDATE aircrafts1 SET speed = 807 WHERE aircraft_code = '764';
+SELECT * FROM aircrafts1;
+ALTER TABLE aircrafts1 ALTER COLUMN speed SET NOT NULL;
+ALTER TABLE aircrafts1 ADD CHECK(speed >= 300);
+ALTER TABLE aircrafts1 ALTER COLUMN speed DROP NOT NULL;
+ALTER TABLE aircrafts1 DROP CONSTRAINT aircrafts1_speed_check1;
+ALTER TABLE aircrafts1 DROP COLUMN speed;
+SELECT * FROM airports;
+ALTER TABLE airports1
+    ALTER COLUMN longitude SET DATA TYPE NUMERIC(5, 2),
+    ALTER COLUMN latitude SET DATA TYPE NUMERIC(5, 2);
+SELECT * FROM airports1;
+CREATE TABLE fare_conditions (
+    fare_conditions_code INTEGER,
+    fare_conditions_name VARCHAR(10) NOT NULL,
+    PRIMARY KEY (fare_conditions_code)
+);
+INSERT INTO fare_conditions
+VALUES (1, 'Economy'),
+        (2, 'Business'),
+        (3, 'Comfort');
+ALTER TABLE seats1
+    DROP CONSTRAINT seats1_fare_conditions_check,
+    ALTER COLUMN fare_conditions SET DATA TYPE INTEGER
+        USING (CASE WHEN fare_conditions = 'Economy' THEN 1
+                    WHEN fare_conditions = 'Business' THEN 2
+                    ELSE 3 END);
+ALTER TABLE seats1 
+    ADD FOREIGN KEY (fare_conditions)
+        REFERENCES fare_conditions (fare_conditions_code);
+ALTER TABLE seats1
+    RENAME COLUMN fare_conditions TO fare_conditions_code;
+ALTER TABLE seats1
+    RENAME CONSTRAINT seats_fare_conditions_code_fkey
+        TO seats1_fare_conditions_code_fkey;
+ALTER TABLE fare_conditions ADD UNIQUE (fare_conditions_name);
+
+--------------------------VIEW-------------------------
+
+CREATE VIEW seats_by_fare_cond AS
+SELECT aircraft_code, fare_conditions_code, count(*) FROM seats1
+GROUP BY aircraft_code, fare_conditions_code
+ORDER BY aircraft_code, fare_conditions_code;
+SELECT * FROM seats_by_fare_cond;
+DROP VIEW seats_by_fare_cond;
+CREATE OR REPLACE VIEW seats_by_fare_cond AS
+SELECT aircraft_code, fare_conditions_code, count(*) AS num_seats
+FROM seats1
+GROUP BY aircraft_code, fare_conditions_code
+ORDER BY aircraft_code, fare_conditions_code;
+DROP VIEW seats_by_fare_cond;
+CREATE OR REPLACE VIEW seats_by_fare_cond (code, fare_cond, num_seats) AS
+SELECT aircraft_code, fare_conditions_code, count(*) AS num_seats
+FROM seats1
+GROUP BY aircraft_code, fare_conditions_code
+ORDER BY aircraft_code, fare_conditions_code;
+SELECT * FROM flights_v;
+
+ALTER TABLE flights1 DROP CONSTRAINT flights1_check1;
+ALTER TABLE flights1
+ADD CHECK (actual_arrival IS NULL OR
+            (actual_departure IS NOT NULL AND
+            actual_arrival > actual_departure));
+INSERT INTO flights1 (flight_no, scheduled_departure, scheduled_arrival, departure_airport,
+                    arrival_airport, status, aircraft_code, actual_departure, actual_arrival)
+VALUES ('123', current_timestamp, '2024-09-30', 'TTT', 'TTT', 'On Time', '773', '2001-12-22'::timestamp, '2001-12-24'::timestamp);
+INSERT INTO flights1 (flight_no, scheduled_departure, scheduled_arrival, departure_airport,
+                    arrival_airport, status, aircraft_code, actual_departure)
+VALUES ('123', current_timestamp, '2024-09-30', 'TTT', 'TTT', 'On Time', '773', '2001-12-22'::timestamp);
+
+ALTER TABLE flights11 RENAME TO flights1;
+
+CREATE OR REPLACE VIEW airc AS
+SELECT * FROM tickets
+WHERE contact_data ->> 'phone' LIKE '+707%';
+
+UPDATE airc SET passenger_name = 'OOO' WHERE ticket_no = '0005432000304';
+SELECT passenger_name FROM airc WHERE ticket_no = '0005432000284';
+SELECT * FROM routes WHERE flight_no = 'PG1';
+SELECT * FROM flights WHERE flight_no = 'PG1';
+UPDATE flights SET flight_no = 'PG0001' WHERE flight_no = 'PG1';
+
+CREATE OR REPLACE VIEW average AS
+SELECT extract(MONTH FROM book_date) as MONTH, AVG(total_amount) as avg FROM bookings
+GROUP BY extract(MONTH FROM book_date)
+ORDER BY avg;
+CREATE OR REPLACE VIEW status_fight AS
+SELECT status, count(status) as status_of_flight FROM flights
+GROUP BY status ORDER BY status_of_flight; 
+
+ALTER TABLE aircrafts1 ADD COLUMN specifications jsonb;
+UPDATE aircrafts1 SET specifications = 
+    '{"crew": 2, "engines": {"type": "IAE V2500", "num": 2}}'::jsonb
+WHERE aircraft_code = '320';
+SELECT model, specifications FROM aircrafts1
+WHERE aircraft_code = '320';
+SELECT model, specifications -> 'engines' AS engines FROM aircrafts1
+WHERE aircraft_code = '320';
+SELECT model, specifications #> '{engines, type}' FROM aircrafts1
+WHERE aircraft_code = '320';
+ALTER TABLE seats ADD COLUMN description JSONB;
+UPDATE seats SET description = '{"window": 1, "bathroom": 1, "TV":0}'
+WHERE aircraft_code = '319' AND fare_conditions = 'Economy';
+SELECT * FROM seats
+WHERE aircraft_code = '319' AND fare_conditions = 'Economy';
+SELECT * FROM seats WHERE description -> 'TV' = '0';
+
+
+-----------QUERIES------------------------
+SELECT count(*) FROM aircrafts;
+SELECT count(*) FROM airports;
+SELECT * FROM aircrafts WHERE model LIKE 'Аэробус%';
+SELECT * FROM aircrafts 
+WHERE model NOT LIKE 'Аэробус%' AND model NOT LIKE 'Боинг%';
+SELECT * FROM airports WHERE airport_name LIKE '___';
+SELECT * FROM aircrafts WHERE model ~ '^(Аэ|Бо)';
+SELECT * FROM aircrafts WHERE model !~ '300$';
+SELECT * FROM aircrafts WHERE range BETWEEN 3000 AND 6000;
+SELECT model, range, range / 1.609 AS miles FROM aircrafts;
+SELECT model, range, round(range / 1.609, 2) AS miles FROM aircrafts;
+SELECT * FROM aircrafts ORDER BY range DESC;
+SELECT timezone FROM airports;
+SELECT DISTINCT timezone FROM airports ORDER BY 1;
+SELECT airport_name, city, coordinates[1] as longitude FROM airports
+ORDER BY longitude DESC LIMIT 3;
+SELECT airport_name, city, coordinates[1] as longitude FROM airports
+ORDER BY longitude DESC
+LIMIT 3 OFFSET 3;
+SELECT model, range,
+CASE WHEN range < 2000 THEN 'Shortdistance'
+     WHEN range < 5000 THEN 'Middledistance'
+     ELSE 'Longdistance'
+END AS type
+FROM aircrafts
+ORDER BY model;
