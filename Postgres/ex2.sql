@@ -855,6 +855,7 @@ SELECT * FROM seats WHERE description -> 'TV' = '0';
 
 
 -----------QUERIES------------------------
+
 SELECT count(*) FROM aircrafts;
 SELECT count(*) FROM airports;
 SELECT * FROM aircrafts WHERE model LIKE 'Аэробус%';
@@ -881,3 +882,155 @@ CASE WHEN range < 2000 THEN 'Shortdistance'
 END AS type
 FROM aircrafts
 ORDER BY model;
+
+
+SELECT a.aircraft_code, a.model, s.seat_no, s.fare_conditions
+FROM seats AS s JOIN aircrafts AS a
+ON s.aircraft_code = a.aircraft_code
+WHERE a.model ~ '^Сессна'
+ORDER BY s.seat_no;
+SELECT * FROM seats WHERE aircraft_code = 'CN1';
+
+SELECT s.seat_no, s.fare_conditions
+FROM seats s JOIN aircrafts a ON s.aircraft_code = a.aircraft_code
+WHERE a.model ~ '^Сессна'
+ORDER BY s.seat_no;
+
+SELECT a.aircraft_code, a.model, s.seat_no, s.fare_conditions
+FROM seats s, aircrafts a
+WHERE s.aircraft_code = a.aircraft_code AND a.model ~ '^Сессна'
+ORDER BY s.seat_no;
+
+CREATE OR REPLACE VIEW flights_v1 AS
+SELECT f.flight_id,
+        f.flight_no,
+        f.scheduled_departure,
+        timezone(dep.timezone, f.scheduled_departure)
+            AS scheduled_departure_local,
+        f.scheduled_arrival,
+        timezone(arr.timezone, f.scheduled_arrival)
+            AS scheduled_arrival_local,
+        f.scheduled_arrival - f.scheduled_departure
+            AS scheduled_duration,
+        f.departure_airport,
+        dep.airport_name AS departure_airport_name,
+        dep.city AS departure_city,
+        f.arrival_airport,
+        arr.airport_name AS arrival_airport_name,
+        arr.city AS arrival_city,
+        f.status,
+        f.aircraft_code,
+        f.actual_departure,
+        timezone(dep.timezone, f.actual_departure)
+            AS actual_departure_local,
+        f.actual_arrival,
+        timezone(arr.timezone, f.actual_arrival)
+            AS actual_arrival_local,
+        f.actual_arrival - f.actual_departure AS actual_duration
+FROM flights f, airports dep, airports arr
+WHERE f.departure_airport = dep.airport_code
+    AND f.arrival_airport = arr.airport_code;
+
+SELECT count(*) FROM airports a1, airports a2
+WHERE a1.city <> a2.city;
+--OR
+SELECT count(*) FROM airports a1
+JOIN airports a2 ON a1.city <> a2.city;
+--OR
+SELECT count(*)
+FROM airports a1 CROSS JOIN airports a2
+WHERE a1.city <> a2.city;
+
+SELECT r.aircraft_code, a.model, count(*) AS num_routes
+FROM routes r
+JOIN aircrafts a ON r.aircraft_code = a.aircraft_code
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+SELECT a.aircraft_code AS a_code,
+        a.model,
+        r.aircraft_code AS r_code,
+        count(r.aircraft_code) AS num_routes
+FROM aircrafts a
+LEFT OUTER JOIN routes r ON r.aircraft_code = a.aircraft_code
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC;
+
+SELECT count(*)
+FROM (ticket_flights t JOIN flights f ON t.flight_id = f.flight_id)
+LEFT OUTER JOIN boarding_passes b
+ON t.ticket_no = b.ticket_no AND t.flight_id = b.flight_id
+WHERE f.actual_departure IS NOT NULL AND b.flight_id IS NULL;
+
+SELECT f.flight_no,
+        f.scheduled_departure,
+        f.flight_id,
+        f.departure_airport,
+        f.arrival_airport,
+        f.aircraft_code,
+        t.passenger_name,
+        tf.fare_conditions AS fc_to_be,
+        s.fare_conditions AS fc_fact,
+        b.seat_no
+FROM boarding_passes b
+JOIN ticket_flights tf
+ON b.ticket_no = tf.ticket_no AND b.flight_id = tf.flight_id
+JOIN tickets t ON tf.ticket_no =  t.ticket_no
+JOIN flights f ON tf.flight_id = f.flight_id
+JOIN seats s
+ON b.seat_no = s.seat_no AND f.aircraft_code = s.aircraft_code
+WHERE tf.fare_conditions <> s.fare_conditions
+ORDER BY f.flight_no, f.scheduled_departure;
+
+SELECT r.min_sum, r.max_sum, count(b.*)
+FROM bookings b
+RIGHT OUTER JOIN 
+(VALUES (       0, 100000), ( 100000, 200000 ),
+        ( 200000, 300000 ), ( 300000, 400000 ),
+        ( 400000, 500000 ), ( 500000, 600000 ),
+        ( 600000, 700000 ), ( 700000, 800000 ),
+        ( 800000, 900000 ), ( 900000, 1000000 ),
+        ( 1000000, 1100000 ), ( 1100000, 1200000 ),
+        ( 1200000, 1300000 )) AS r (min_sum, max_sum)
+ON b.total_amount >= r.min_sum AND b.total_amount < r.max_sum
+GROUP BY r.min_sum, r.max_sum
+ORDER BY r.min_sum;
+
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Москва'
+UNION
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Санкт-Петербург'
+ORDER BY arrival_city;
+
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Москва'
+INTERSECT
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Санкт-Петербург'
+ORDER BY arrival_city;
+
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Москва'
+EXCEPT
+SELECT arrival_city FROM routes
+WHERE departure_city = 'Санкт-Петербург'
+ORDER BY arrival_city;
+
+
+
+SELECT avg(total_amount) FROM bookings;
+SELECT max(total_amount) FROM bookings;
+SELECT min(total_amount) FROM bookings;
+
+SELECT arrival_city, count(*)
+FROM routes
+WHERE departure_city = 'Москва'
+GROUP BY arrival_city
+ORDER BY count DESC;
+
+SELECT array_length(days_of_week, 1) AS days_per_week,
+        count(*) AS num_routes
+FROM routes
+GROUP BY days_per_week
+ORDER BY 1 desc;
