@@ -1034,3 +1034,257 @@ SELECT array_length(days_of_week, 1) AS days_per_week,
 FROM routes
 GROUP BY days_per_week
 ORDER BY 1 desc;
+
+SELECT departure_city, count(*)
+FROM routes
+GROUP BY departure_city
+HAVING count(*) >= 15
+ORDER BY count DESC;
+
+SELECT city, count(*) FROM airports
+GROUP BY city HA                                                                                                                          VING count(*) > 1;
+
+SELECT b.book_ref,
+        b.book_date,
+        extract('month' from b.book_date) as month,
+        extract('day' from b.book_date) as day,
+        count(*) OVER (PARTITION BY date_trunc('month', b.book_date)
+                        ORDER BY b.book_date) as count
+FROM ticket_flights tf
+JOIN tickets t ON tf.ticket_no = t.ticket_no
+JOIN bookings b ON t.book_ref = b.book_ref
+WHERE tf.flight_id = 2
+ORDER BY b.book_date;
+
+SELECT airport_name,
+        city,
+        round(coordinates[1]::numeric, 2) as ltd,
+        timezone,
+        rank() OVER (
+            PARTITION BY timezone
+            ORDER BY coordinates[1] DESC
+        )
+FROM airportlatitudes
+WHERE timezone IN ('Asia/Irkutsk', 'Asia/Krasnoyarsk')
+ORDER BY timezone, rank;
+
+SELECT airport_name, city, timezone, coordinates[1],
+        first_value(coordinates[1]) OVER tz AS first_in_timezone,
+        coordinates[1] - first_value(coordinates[1]) OVER tz AS delta,
+        rank() OVER tz
+FROM airports
+WHERE timezone IN ('Asia/Irkutsk', 'Asia/Krasnoyarsk')
+WINDOW tz AS (PARTITION BY timezone ORDER BY coordinates[1] DESC)
+ORDER BY timezone, rank;
+
+-------------SUBQUERIES------------------
+SELECT count(*) FROM bookings
+WHERE total_amount > (SELECT avg(total_amount) FROM bookings);
+
+SELECT flight_no, departure_city, arrival_city
+FROM routes
+WHERE departure_city IN (
+    SELECT city FROM airports WHERE timezone ~ 'Krasnoyarsk'
+)
+AND arrival_city IN (
+SELECT city FROM airports WHERE timezone ~ 'Krasnoyarsk');
+
+SELECT airport_name, city, coordinates[1]
+FROM airports
+WHERE coordinates[1] IN (
+    (SELECT max(coordinates[1]) FROM airports),
+    (SELECT min(coordinates[1]) FROM airports)
+)
+ORDER BY coordinates[1];
+
+SELECT DISTINCT a.city FROM airports a
+WHERE NOT EXISTS (
+    SELECT * FROM routes r
+    WHERE r.departure_city = 'Москва'
+    AND r.arrival_city = a.city
+)
+AND a.city <> 'Москва'
+ORDER BY city;
+
+SELECT a.model,
+(SELECT count(*) FROM seats s WHERE s.aircraft_code = a.aircraft_code
+    AND s.fare_conditions = 'Business') AS business,
+(SELECT count(*) FROM seats s WHERE s.aircraft_code = a.aircraft_code
+AND s.fare_conditions = 'Comfort') AS comfort,
+(SELECT count(*) FROM seats s WHERE s.aircraft_code = a.aircraft_code
+AND s.fare_conditions = 'Economy') AS economy
+FROM aircrafts a ORDER BY 1;
+
+SELECT s2.model, 
+string_agg(s2.fare_conditions || ' (' || s2.num || ')', ', ')
+FROM (SELECT a.model, s.fare_conditions, count(*) AS num
+    FROM aircrafts a JOIN seats s ON a.aircraft_code = s.aircraft_code
+    GROUP BY 1, 2 ORDER BY 1, 2) AS s2
+GROUP BY s2.model ORDER BY s2.model;
+
+SELECT aa.city, aa.airport_code, aa.airport_name
+FROM (SELECT city, count(*) 
+        FROM airports GROUP BY city HAVING count(*) > 1) AS a
+JOIN airports AS aa ON a.city = aa.city
+ORDER BY aa.city, aa.airport_name;
+
+SELECT departure_airport, departure_city, count(*)
+FROM routes
+GROUP BY departure_airport, departure_city
+HAVING departure_airport IN (
+    SELECT airport_code FROM airports WHERE coordinates[1] > 65)
+ORDER BY count DESC;
+
+SELECT ts.flight_id,
+        ts.flight_no,
+        ts.scheduled_departure_local,
+        ts.departure_city,
+        ts.arrival_city,
+        a.model,
+        ts.fact_passengers,
+        ts.total_seats,
+        round(ts.fact_passengers::numeric /
+                ts.total_seats::numeric, 2) AS fraction
+FROM (SELECT f.flight_id,
+            f.flight_no,
+            f.scheduled_departure_local,
+            f.departure_city,
+            f.arrival_city,
+            f.aircraft_code,
+            count(tf.ticket_no) AS fact_passengers,
+            (SELECT count(s.seat_no) FROM seats s
+                WHERE s.aircraft_code = f.aircraft_code) AS total_seats
+        FROM flights_v f
+        JOIN ticket_flights tf ON f.flight_id = tf.flight_id
+        WHERE f.status = 'Arrived'
+        GROUP BY 1, 2, 3, 4, 5, 6) AS ts
+JOIN aircrafts AS a ON ts.aircraft_code = a.aircraft_code
+ORDER BY ts.scheduled_departure_local;
+
+-- OR -- 
+
+WITH ts AS
+(SELECT f.flight_id,
+        f.flight_no,
+        f.scheduled_departure_local,
+        f.departure_city,
+        f.arrival_city,
+        f.aircraft_code,
+        count(tf.ticket_no) AS fact_passengers,
+            (SELECT count(s.seat_no) FROM seats s
+                WHERE s.aircraft_code = f.aircraft_code) AS total_seats
+        FROM flights_v f
+        JOIN ticket_flights tf ON f.flight_id = tf.flight_id
+        WHERE f.status = 'Arrived'
+        GROUP BY 1, 2, 3, 4, 5, 6)
+
+SELECT ts.flight_id,
+        ts.flight_no,
+        ts.scheduled_departure_local,
+        ts.departure_city,
+        ts.arrival_city,
+        a.model,
+        ts.fact_passengers,
+        ts.total_seats,
+        round(ts.fact_passengers::numeric /
+                ts.total_seats::numeric, 2) AS fraction
+FROM ts
+JOIN aircrafts AS a ON ts.aircraft_code = a.aircraft_code
+ORDER BY ts.scheduled_departure_local;
+
+
+WITH RECURSIVE ranges (min_sum, max_sum) AS
+(VALUES (0, 100000) UNION ALL
+SELECT min_sum + 100000, max_sum + 100000 FROM ranges
+WHERE max_sum < 
+    (SELECT max(total_amount) FROM bookings))
+SELECT * FROM ranges;
+
+
+WITH RECURSIVE ranges (min_sum, max_sum) AS
+(VALUES (0, 100000) UNION ALL
+SELECT min_sum + 100000, max_sum + 100000 FROM ranges
+WHERE max_sum < 
+    (SELECT max(total_amount) FROM bookings))
+    
+SELECT r.min_sum, r.max_sum, count(b.*) FROM bookings b
+RIGHT OUTER JOIN ranges r
+ON b.total_amount >= r.min_sum AND b.total_amount < r.max_sum
+GROUP BY r.min_sum, r.max_sum
+ORDER BY r.min_sum;
+
+CREATE MATERIALIZED VIEW routes1 AS
+    WITH f3 AS
+        (
+            SELECT f2.flight_no,
+                f2.departure_airport,
+                f2.arrival_airport,
+                f2.aircraft_code,
+                f2.duration,
+                array_agg(f2.days_of_week) AS days_of_week
+            FROM
+            (SELECT f1.flight_no,
+                    f1.departure_airport,
+                    f1.arrival_airport,
+                    f1.aircraft_code,
+                    f1.duration,
+                    f1.days_of_week
+            FROM
+            (SELECT flights.flight_no,
+                    flights.departure_airport,
+                    flights.arrival_airport,
+                    flights.aircraft_code,
+                    (flights.scheduled_arrival - flights.scheduled_departure) AS duration,
+                    (to_char(flights.scheduled_departure, 'ID'::text))::integer AS days_of_week
+            FROM flights) f1
+            GROUP by f1.flight_no, f1.departure_airport,
+                    f1.arrival_airport, f1.aircraft_code,
+                    f1.duration, f1.days_of_week
+            ORDER BY f1.flight_no, f1.departure_airport,
+                    f1.arrival_airport, f1.aircraft_code,
+                    f1.duration, f1.days_of_week
+            ) f2
+            GROUP BY f2.flight_no, f2.departure_airport,
+                    f2.arrival_airport, f2.aircraft_code,
+                    f2.duration
+        )
+SELECT f3.flight_no,
+        f3.departure_airport,
+        dep.airport_name AS departure_airport_name,
+        dep.city AS departure_city,
+        f3.arrival_airport,
+        arr.airport_name AS arrival_airport_name,
+        arr.city AS arrival_city,
+        f3.aircraft_code,
+        f3.duration,
+        f3.days_of_week
+FROM f3,
+    airports dep,
+    airports arr
+WHERE f3.departure_airport = dep.airport_code
+AND f3.arrival_airport = arr.airport_code;
+
+
+SELECT count(*) FROM tickets;
+SELECT count(*) FROM tickets WHERE passenger_name LIKE '% %';
+SELECT count(*) FROM tickets WHERE passenger_name LIKE '% % %';
+SELECT count(*) FROM tickets WHERE passenger_name LIKE '% %%';
+
+
+SELECT passenger_name FROM tickets
+WHERE passenger_name LIKE '___ %';
+
+SELECT passenger_name FROM tickets
+WHERE passenger_name SIMILAR TO '% _____';
+
+SELECT passenger_name FROM tickets
+WHERE passenger_name SIMILAR TO '% _{5}';
+
+SELECT model, flight_no FROM aircrafts a, routes r
+WHERE a.aircraft_code = r.aircraft_code AND model LIKE 'Боинг%';
+
+SELECT DISTINCT departure_city, arrival_city
+FROM (select * from routes GROUP BY duration) r
+JOIN aircrafts a ON r.aircraft_code = a.aircraft_code
+WHERE a.model = 'Боинг 777-300'
+ORDER BY 1;
