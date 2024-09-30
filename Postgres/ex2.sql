@@ -1064,7 +1064,7 @@ SELECT airport_name,
             PARTITION BY timezone
             ORDER BY coordinates[1] DESC
         )
-FROM airportlatitudes
+FROM airports
 WHERE timezone IN ('Asia/Irkutsk', 'Asia/Krasnoyarsk')
 ORDER BY timezone, rank;
 
@@ -1283,8 +1283,109 @@ WHERE passenger_name SIMILAR TO '% _{5}';
 SELECT model, flight_no FROM aircrafts a, routes r
 WHERE a.aircraft_code = r.aircraft_code AND model LIKE 'Боинг%';
 
-SELECT DISTINCT departure_city, arrival_city
-FROM (select * from routes GROUP BY duration) r
-JOIN aircrafts a ON r.aircraft_code = a.aircraft_code
+
+SELECT DISTINCT 
+    LEAST(r2.departure_city, r2.arrival_city) AS city1,
+    GREATEST(r2.departure_city, r2.arrival_city) AS city2
+FROM routes r2
+JOIN aircrafts a ON r2.aircraft_code = a.aircraft_code
 WHERE a.model = 'Боинг 777-300'
+ORDER BY city1, city2;
+
+SELECT fare_conditions_code, fare_conditions_name, aircraft_code, seat_no FROM fare_conditions
+FULL OUTER JOIN seats ON fare_conditions = fare_conditions_name;
+
+SELECT departure_city, arrival_city, count(*) FROM routes
+WHERE departure_city = 'Москва'
+  AND arrival_city = 'Санкт-Петербург'
+GROUP BY departure_city, arrival_city;
+
+SELECT departure_city, count(*) FROM (SELECT DISTINCT departure_city, arrival_city FROM routes)
+GROUP BY departure_city ORDER BY count DESC;
+
+SELECT arrival_city, count(*) FROM routes
+WHERE array_length(days_of_week, 1) = 7 AND departure_city = 'Москва'
+GROUP BY arrival_city ORDER BY count DESC LIMIT 5;
+
+SELECT 'Monday' AS day_of_week, count(*) AS num_flights
+FROM routes
+WHERE departure_city = 'Москва' AND days_of_week @> '{1}'::integer[];
+
+SELECT unnest(days_of_week) AS day_of_week,
+        count(*) AS num_flights
+FROM routes
+WHERE departure_city = 'Москва'
+GROUP BY day_of_week
+ORDER BY day_of_week;
+
+SELECT flight_no, unnest(days_of_week) AS day_of_week
+FROM routes
+WHERE departure_city = 'Москва'
+ORDER BY flight_no;
+
+SELECT dw.name_of_day, count(*) AS num_flights
+FROM (
+    SELECT unnest(days_of_week) AS num_of_day
+    FROM routes
+    WHERE departure_city = 'Москва'
+) AS r,
+unnest ('{1, 2, 3, 4, 5, 6, 7}'::integer[],
+        '{ "Пн.", "Вт.", "Ср.", "Чт.", "Пт.", "Сб.", "Вс."}'::text[]
+        ) AS dw(num_of_day, name_of_day)
+WHERE r.num_of_day = dw.num_of_day
+GROUP BY r.num_of_day, dw.name_of_day
+ORDER BY r.num_of_day;
+
+SELECT dw.name_of_day, count(*) AS num_flights
+FROM (
+    SELECT unnest(days_of_week) AS num_of_day
+    FROM routes
+    WHERE departure_city = 'Москва'
+) AS r,
+unnest (
+        '{ "Пн.", "Вт.", "Ср.", "Чт.", "Пт.", "Сб.", "Вс."}'::text[]
+        ) WITH ORDINALITY AS dw(name_of_day, num_of_day)
+WHERE r.num_of_day = dw.num_of_day
+GROUP BY r.num_of_day, dw.name_of_day
+ORDER BY r.num_of_day;
+
+SELECT f.departure_city, f.arrival_city,
+        max(tf.amount), min(tf.amount)
+FROM flights_v f
+FULL OUTER JOIN ticket_flights tf ON f.flight_id = tf.flight_id
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+SELECT left(passenger_name, strpos(passenger_name, ' ') - 1)
+    AS firstname, count(*)
+FROM tickets
+GROUP BY 1
+ORDER BY 2 DESC;
+
+SELECT substr(passenger_name, strpos(passenger_name, ' ') + 1)
+    AS secondname, count(*)
+FROM tickets
+GROUP BY 1
 ORDER BY 1;
+
+SELECT DISTINCT extract('year' from b.book_date) AS year,
+        extract('month' from b.book_date) AS month,
+        sum(total_amount) OVER (PARTITION BY extract('year' from b.book_date) 
+                                ORDER BY extract('month' from b.book_date))
+FROM bookings b;
+
+SELECT count(*) FILTER (WHERE total_amount > 110000) AS total_amount
+FROM bookings;
+
+SELECT a.aircraft_code, model, fare_conditions, count(*)
+FROM seats s, aircrafts a WHERE s.aircraft_code = a.aircraft_code
+GROUP BY (1, 2, 3)
+ORDER BY aircraft_code;
+
+WITH main AS
+(SELECT a.aircraft_code, a.model, count(*) AS num_routes
+FROM aircrafts a, routes r, (SELECT count(*) FROM routes) c
+WHERE a.aircraft_code = r.aircraft_code
+GROUP BY 1, 2)
+SELECT aircraft_code, model, num_routes, round(num_routes::numeric/c.big::numeric, 4) AS fraction
+FROM main, (SELECT count(*) as big FROM routes) c;
