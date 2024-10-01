@@ -1,4 +1,4 @@
--- Active: 1727185462921@@127.0.0.1@5432@demo@bookings
+
 
 --CREATE TABLE aircrafts1 (
 --    aircraft_code char(3) NOT NULL,
