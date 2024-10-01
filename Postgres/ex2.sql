@@ -1389,3 +1389,236 @@ WHERE a.aircraft_code = r.aircraft_code
 GROUP BY 1, 2)
 SELECT aircraft_code, model, num_routes, round(num_routes::numeric/c.big::numeric, 4) AS fraction
 FROM main, (SELECT count(*) as big FROM routes) c;
+201
+
+WITH RECURSIVE ranges (min_sum, max_sum, iteration)
+AS (VALUES (0, 100000, 0.0),
+            (100000, 200000, 0.0),
+            (200000, 300000, 0.0)
+    UNION ALL
+    SELECT min_sum + 100000, max_sum + 100000, iteration + 1
+    FROM ranges
+    WHERE max_sum < (SELECT max(total_amount) FROM bookings))
+SELECT min_sum, max_sum, round(iteration) FROM ranges;
+
+
+WITH RECURSIVE ranges(min_sum, max_sum)
+AS (
+  VALUES (0, 100000)
+  UNION ALL
+    SELECT min_sum + 100000, max_sum + 100000
+    FROM ranges
+    WHERE max_sum < (SELECT max(total_amount) FROM bookings)
+)
+SELECT r.min_sum,
+        r.max_sum,
+        count(b.*)
+FROM bookings b
+RIGHT JOIN ranges r
+    ON b.total_amount >= r.min_sum
+    AND b.total_amount < r.max_sum
+GROUP BY r.min_sum, r.max_sum
+ORDER BY r.min_sum;
+
+
+SELECT DISTINCT a.city
+FROM airports a
+WHERE NOT EXISTS (
+    SELECT * FROM routes r
+    WHERE r.departure_city = 'Москва'
+        AND r.arrival_City = a.city
+)
+    AND a.city <> 'Москва'
+ORDER BY city;
+
+SELECT city
+FROM airports
+WHERE city <> 'Москва'
+EXCEPT
+SELECT arrival_city
+FROM routes
+WHERE departure_city = 'Москва'
+ORDER BY city;
+
+SELECT aa.city, aa.airport_code, aa.airport_name
+FROM (SELECT city, count(*)
+        FROM airports
+        GROUP BY city
+        HAVING count(*) > 1) AS a
+JOIN airports AS aa ON a.city = aa.city
+ORDER BY aa.city, aa.airport_name;
+
+SELECT count(*)
+FROM (SELECT DISTINCT city FROM airports) AS a1
+JOIN (SELECT DISTINCT city FROM airports) AS a2
+ON a1.city <> a2.city;
+
+WITH ally AS (SELECT * FROM
+    (SELECT DISTINCT city FROM airports) as a1,
+    (SELECT DISTINCT city FROM airports) as a2
+    WHERE a1.city <> a2.city)
+SELECT count(*) FROM ally; 
+
+SELECT * FROM airports
+WHERE city IN ('Якутск','Южно-Сахалинск');
+
+SELECT * FROM routes
+WHERE departure_airport = ANY('{MJZ, PEZ}');
+
+SELECT * FROM airports
+WHERE timezone IN ('Asia/Novokuznetsk', 'Asia/Krasnoyarsk');
+
+SELECT * FROM airports
+WHERE timezone = ANY(VALUES('Asia/Novokuznetsk'), ('Asia/Krasnoyarsk'));
+
+SELECT departure_city, count(*)
+FROM routes
+GROUP BY departure_city 
+HAVING departure_city = ANY (
+    SELECT city FROM airports
+    WHERE coordinates[1] > 60
+)
+ORDER BY count DESC;
+
+
+WITH tickets_seats AS 
+(SELECT f.flight_id,
+        f.flight_no,
+        f.departure_city,
+        f.arrival_city,
+        f.aircraft_code,
+        count(tf.ticket_no) AS fact_passengers,
+        (SELECT count(s.seat_no) FROM seats s
+        WHERE s.aircraft_code = f.aircraft_code) AS total_seats
+    FROM flights_v f
+    JOIN ticket_flights tf ON f.flight_id = tf.flight_id
+    WHERE f.status = 'Arrived'
+    GROUP BY 1, 2, 3, 4, 5)
+SELECT ts.departure_city,
+        ts.arrival_city,
+        sum(ts.fact_passengers) AS sum_pass,
+        sum(ts.total_seats) AS sum_seats,
+        round(sum(ts.fact_passengers)::numeric /
+                sum(ts.total_seats)::numeric, 2) AS frac
+FROM tickets_seats ts
+GROUP BY ts.departure_city, ts.arrival_city
+ORDER BY ts.departure_city;
+    
+WITH tickets_seats AS 
+(SELECT f.flight_id,
+        f.flight_no,
+        f.departure_city,
+        f.arrival_city,
+        f.aircraft_code,
+        tf.fare_conditions,
+        count(tf.ticket_no) AS fact_passengers,
+        (SELECT count(s.seat_no) FROM seats s
+        WHERE s.aircraft_code = f.aircraft_code AND s.fare_conditions = tf.fare_conditions) AS total_seats
+    FROM flights_v f, ticket_flights tf
+    WHERE f.status = 'Arrived' AND f.flight_id = tf.flight_id
+    GROUP BY 1, 2, 3, 4, 5, 6)
+SELECT ts.departure_city,
+        ts.arrival_city,
+        ts.fare_conditions,
+        sum(ts.fact_passengers) AS sum_pass,
+        sum(ts.total_seats) AS sum_seats,
+        round(sum(ts.fact_passengers)::numeric /
+                sum(ts.total_seats)::numeric, 2) AS frac
+FROM tickets_seats ts
+GROUP BY ts.departure_city, ts.arrival_city, ts.fare_conditions
+ORDER BY ts.departure_city;
+
+SELECT s.aircraft_code, fare_conditions, count(*) FROM seats s, flights_v f
+WHERE s.aircraft_code = f.aircraft_code group by s.aircraft_code, fare_conditions
+ORDER BY aircraft_code;
+SELECT count(s.seat_no) FROM seats s, flights_v f
+WHERE s.aircraft_code = f.aircraft_code
+
+
+SELECT * FROM flights_v
+WHERE departure_city = 'Кемерово' AND arrival_city = 'Москва'
+AND actual_arrival < bookings.now();
+
+SELECT t.passenger_name, b.seat_no
+FROM (ticket_flights tf
+        JOIN tickets t ON tf.ticket_no = t.ticket_no)
+JOIN boarding_passes b
+ON tf.ticket_no = b.ticket_no
+AND tf.flight_id = b.flight_id
+WHERE tf.flight_id = 27584
+ORDER BY t.passenger_name;
+
+SELECT t.passenger_name,
+        substr(t.passenger_name, strpos(t.passenger_name, ' ') + 1) AS lastname,
+        left(t.passenger_name, strpos(t.passenger_name, ' ') - 1) AS firstname,
+        b.seat_no
+FROM (ticket_flights tf JOIN tickets t ON tf.ticket_no = t.ticket_no)
+JOIN boarding_passes b
+ON tf.ticket_no = b.ticket_no AND tf.flight_id = b.flight_id
+WHERE tf.flight_id = 27584
+ORDER BY 2, 3;
+
+SELECT s.seat_no, p.passenger_name
+FROM seats s
+LEFT OUTER JOIN (
+    SELECT t.passenger_name, b.seat_no
+    FROM (ticket_flights tf JOIN tickets t ON tf.ticket_no = t.ticket_no)
+    JOIN boarding_passes b
+    ON tf.ticket_no = b.ticket_no AND tf.flight_id = b.flight_id
+    WHERE tf.flight_id = 27584
+) AS p
+ON s.seat_no = p.seat_no
+WHERE s.aircraft_code = 'SU9'
+ORDER BY s.seat_no;
+
+SELECT s.seat_no, p.passenger_name, p.email, s.fare_conditions
+FROM seats s
+LEFT OUTER JOIN (
+    SELECT t.passenger_name, b.seat_no, t.contact_data -> 'email' AS email
+    FROM (ticket_flights tf JOIN tickets t ON tf.ticket_no = t.ticket_no)
+    JOIN boarding_passes b
+    ON tf.ticket_no = b.ticket_no AND tf.flight_id = b.flight_id
+    WHERE tf.flight_id = 27584
+) AS p
+ON s.seat_no = p.seat_no
+WHERE s.aircraft_code = 'SU9'
+ORDER BY left(s.seat_no, length(s.seat_no) - 1)::integer,
+    right(s.seat_no, 1);
+
+
+WITH p AS 
+(   SELECT t.passenger_name, b.seat_no, t.contact_data -> 'email' AS email
+    FROM (ticket_flights tf JOIN tickets t ON tf.ticket_no = t.ticket_no)
+    JOIN boarding_passes b
+    ON tf.ticket_no = b.ticket_no AND tf.flight_id = b.flight_id
+    WHERE tf.flight_id = 27584
+)
+SELECT s.seat_no, p.passenger_name, p.email, s.fare_conditions
+FROM seats s
+LEFT OUTER JOIN p
+ON s.seat_no = p.seat_no
+WHERE s.aircraft_code = 'SU9'
+ORDER BY left(s.seat_no, length(s.seat_no) - 1)::integer,
+    right(s.seat_no, 1);
+
+
+
+
+----------------------DML---------------
+CREATE TEMP TABLE aircrafts_tmp AS
+SELECT * FROM aircrafts WITH NO DATA;
+
+ALTER TABLE aircrafts_tmp
+ADD PRIMARY KEY (aircraft_code);
+
+ALTER TABLE aircrafts_tmp
+ADD UNIQUE (model);
+
+CREATE TEMP TABLE aircrafts_log AS
+SELECT * FROM aircrafts WITH NO DATA;
+
+ALTER TABLE aircrafts_log
+ADD COLUMN when_add timestamp;
+
+ALTER TABLE aircrafts_log
+ADD COLUMN operation text;
