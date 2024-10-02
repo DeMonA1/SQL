@@ -1,4 +1,4 @@
--- Active: 1727185462921@@127.0.0.1@5432@edu@public
+
 CREATE TABLE students (
     record_book NUMERIC(5) NOT NULL,
     name TEXT NOT NULL,

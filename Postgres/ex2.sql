@@ -1,4 +1,4 @@
--- Active: 1727185462921@@127.0.0.1@5432@demo@bookings
+
 
 --CREATE TABLE aircrafts1 (
 --    aircraft_code char(3) NOT NULL,
@@ -1622,3 +1622,335 @@ ADD COLUMN when_add timestamp;
 
 ALTER TABLE aircrafts_log
 ADD COLUMN operation text;
+
+WITH add_row AS
+(INSERT INTO aircrafts_tmp
+    SELECT * FROM aircrafts
+    RETURNING *)
+INSERT INTO aircrafts_log
+SELECT add_row.aircraft_code, add_row.model, add_row.range,
+        current_timestamp, 'INSERT'
+FROM add_row;
+
+SELECT * FROM aircrafts_tmp ORDER BY model;
+SELECT * FROM aircrafts_log ORDER BY model;
+
+WITH add_row AS
+(INSERT INTO aircrafts_tmp
+    VALUES ('SU9', 'Sukhoi SuperJet-100', 3000)
+    ON CONFLICT DO NOTHING
+    RETURNING *)
+INSERT INTO aircrafts_log
+SELECT add_row.aircraft_code, add_row.model, add_row.range,
+    current_timestamp, 'INSERT'
+FROM add_row;
+
+INSERT INTO aircrafts_tmp
+VALUES ('SU9', 'Sukhoi SuperJet-100', 3000)
+ON CONFLICT (aircraft_code) DO NOTHING
+RETURNING *;
+
+INSERT INTO aircrafts_tmp
+VALUES ('899', 'Sukhoi SuperJet-100', 3000)
+ON CONFLICT (aircraft_code) DO NOTHING
+RETURNING *;
+
+INSERT INTO aircrafts_tmp
+VALUES ('SU9', 'Sukhoi SuperJet', 3000)
+ON CONFLICT ON CONSTRAINT aircrafts_tmp_pkey
+DO UPDATE SET model = excluded.model, range = excluded.range
+RETURNING *;
+
+ALTER TABLE aircrafts_tmp ALTER COLUMN model TYPE CHARACTER(20);
+ALTER TABLE aircrafts_log ALTER COLUMN model TYPE CHARACTER(20);
+
+COPY aircrafts_tmp FROM '/tmp/posgres.txt' WITH (DELIMITER ',',
+    FORMAT 'csv');
+
+SELECT * FROM aircrafts_tmp;
+
+COPY aircrafts_tmp TO '/tmp/aircrafts_tmp.txt' WITH (FORMAT csv);
+
+
+
+WITH update_row AS
+(UPDATE aircrafts_tmp
+    SET range = range * 1.2
+    WHERE aircraft_code = 'CR2'
+    RETURNING *)
+INSERT INTO aircrafts_log
+SELECT ur.aircraft_code, ur.model, ur.range,
+    current_timestamp, 'UPDATE'
+FROM update_row ur;
+
+SELECT * FROM aircrafts_log
+WHERE aircraft_code = 'CR2';
+
+CREATE TEMP TABLE tickets_directions AS
+SELECT DISTINCT departure_city, arrival_city FROM routes;
+
+ALTER TABLE tickets_directions
+ADD COLUMN last_ticket_time TIMESTAMP;
+ALTER TABLE tickets_directions
+ADD COLUMN tickets_num_business INTEGER DEFAULT 0;
+ALTER TABLE tickets_directions
+ADD COLUMN tickets_num_comfort INTEGER DEFAULT 0;
+ALTER TABLE tickets_directions
+ADD COLUMN tickets_num_economy INTEGER DEFAULT 0;
+ALTER TABLE tickets_directions
+ADD COLUMN tickets_num INTEGER DEFAULT 0;
+
+CREATE TEMP TABLE ticket_flights_tmp AS
+SELECT * FROM ticket_flights WITH NO DATA;
+
+ALTER TABLE ticket_flights_tmp
+ADD PRIMARY KEY (ticket_no, flight_id);
+
+WITH sell_ticket AS
+(INSERT INTO ticket_flights_tmp
+    (ticket_no, flight_id, fare_conditions, amount)
+    VALUES ('1234567890123', '30829', 'Economy', 12800)
+    RETURNING *)
+UPDATE tickets_directions td
+SET last_ticket_time = current_timestamp, 
+    tickets_num = tickets_num + 1
+WHERE (td.departure_city, td.arrival_city) = 
+(SELECT departure_city, arrival_city
+    FROM flights_v
+    WHERE flight_id = (SELECT flight_id FROM sell_ticket));
+
+SELECT * FROM tickets_directions WHERE tickets_num > 0;
+
+WITH sell_ticket AS
+(INSERT INTO ticket_flights_tmp
+    (ticket_no, flight_id, fare_conditions, amount)
+    VALUES ('1234567890123', 7757, 'Economy', 3400)
+    RETURNING *)
+UPDATE tickets_directions td
+SEt last_ticket_time = current_timestamp,
+    tickets_num = tickets_num + 1
+FROM flights_v f
+WHERE td.departure_city = f.departure_city 
+    AND td.arrival_city = f.arrival_city
+    AND f.flight_id = (SELECT flight_id FROM sell_ticket);
+
+SELECT * FROM tickets_directions WHERE tickets_num > 0;
+
+
+
+WITH delete_row AS
+(DELETE FROM aircrafts_tmp
+    WHERE aircraft_code = 'CR2'
+    RETURNING *)
+INSERT INTO aircrafts_log
+SELECT dr.aircraft_code, dr.model, dr.range,
+    current_timestamp, 'DELETE'
+FROM delete_row dr;
+
+SELECT * FROM aircrafts_log WHERE aircraft_code = 'CR2' ORDER BY when_add;
+
+WITH min_ranges AS
+(SELECT aircraft_code,
+    rank() OVER (PARTITION BY left(model, 6) ORDER BY range) AS rank
+    FROM aircrafts_tmp
+    WHERE model ~ '^Аэробус' OR model ~ '^Боинг')
+DELETE FROM aircrafts_tmp a
+USING min_ranges mr
+WHERE a.aircraft_code = mr.aircraft_code AND mr.rank = 1
+RETURNING *;
+
+SELECT * FROM aircrafts_tmp;
+
+DELETE FROM aircrafts_tmp; TRUNCATE aircrafts_tmp;
+
+SELECT * FROM aircrafts_log;
+
+ALTER TABLE aircrafts_log ALTER COLUMN when_add 
+SET DEFAULT current_timestamp;
+
+WITH add_row AS
+(INSERT INTO aircrafts_tmp
+    VALUES ('SU9', 'Sukhoi SuperJet-100', 3000)
+    ON CONFLICT DO NOTHING
+    RETURNING *)
+INSERT INTO aircrafts_log(aircraft_code, model, range, operation)
+SELECT add_row.aircraft_code, add_row.model, add_row.range,
+    'INSERT'
+FROM add_row;
+
+SELECT * FROM aircrafts_tmp;
+
+WITH add_row AS
+(INSERT INTO aircrafts_tmp
+    SELECT * FROM aircrafts
+    RETURNING aircraft_code, model, range, current_timestamp, 'INSERT')
+INSERT INTO aircrafts_log SELECT aircraft_code, model FROM add_row;
+
+INSERT INTO aircrafts_tmp SELECT * FROM aircrafts ON CONFLICT DO NOTHING RETURNING *;
+
+CREATE TEMP TABLE seats_tmp AS
+SELECT * FROM seats;
+
+ALTER TABLE seats_tmp ADD PRIMARY KEY (aircraft_code, seat_no);
+
+SELECT * FROM seats_tmp;
+
+INSERT INTO seats_tmp
+VALUES(319, '3F', 'Business')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO seats_tmp
+VALUES(319, '3F', 'Business')
+ON CONFLICT ON CONSTRAINT seats_tmp_pkey DO NOTHING;
+
+INSERT INTO seats_tmp
+VALUES(319, '3F', 'Business', '{"s":1}')
+ON CONFLICT ON CONSTRAINT seats_tmp_pkey DO UPDATE SET aircraft_code = excluded.aircraft_code,
+                            seat_no = excluded.seat_no,
+                            fare_conditions = excluded.fare_conditions,
+                            description = excluded.description;
+SELECT * FROM seats_tmp WHERE aircraft_code = '319' AND seat_no = '3F';
+
+SELECT * FROM aircrafts_tmp;
+
+COPY aircrafts_tmp
+FROM '/tmp/posgres.txt' WITH (DELIMITER ',',FORMAT csv);
+
+
+SELECT flight_no, flight_id, departure_city,
+        arrival_city, scheduled_departure
+FROM flights_v
+WHERE scheduled_departure
+    BETWEEN bookings.now() AND bookings.now() + INTERVAL '15 days'
+    AND (departure_city, arrival_city) IN
+    ( ( 'Красноярск', 'Москва' ),
+        ( 'Москва', 'Сочи'),
+        ( 'Сочи', 'Москва' ),
+        ( 'Сочи', 'Красноярск' ))
+ORDER BY departure_city, arrival_city, scheduled_departure;
+
+WITH sell_tickets AS
+(INSERT INTO ticket_flights_tmp
+    (ticket_no, flight_id, fare_conditions, amount)
+VALUES ('1234567890123', 13828, 'Economy', 10500),
+        ('1234567890123', 4727, 'Economy', 3400),
+        ('1234567890123', 30522, 'Economy', 3400),
+        ('1234567890123', 7756, 'Economy', 3400),
+        ('1234567890123', 30827, 'Economy', 12800)
+RETURNING *)
+UPDATE tickets_directions td
+SET last_ticket_time = current_timestamp,
+    tickets_num = tickets_num + (SELECT count(*)
+                                    FROM sell_tickets st, flights_v f
+                                    WHERE st.flight_id = f.flight_id
+                                        AND f.departure_city = td.departure_city
+                                        AND f.arrival_city = td.arrival_city)
+WHERE (td.departure_city, td.arrival_city) IN
+    (SELECT departure_city, arrival_city FROM flights_v
+        WHERE flight_id IN (SELECT flight_id FROM sell_tickets));
+
+SELECT departure_city as dep_city,
+        arrival_city AS arr_city,
+        last_ticket_time,
+        tickets_num AS num
+FROM tickets_directions
+ORDER BY departure_city, arrival_city;
+
+SELECT * FROM ticket_flights_tmp;
+SELECT * FROM tickets_directions WHERE last_ticket_time is not null;
+
+WITH sell_tickets AS
+(INSERT INTO ticket_flights_tmp
+    (ticket_no, flight_id, fare_conditions, amount)
+VALUES ('1234567890123', 13827, 'Economy', 10500),
+        ('1234567890123', 4726, 'Economy', 3400),
+        ('1234567890123', 30521, 'Economy', 3400),
+        ('1234567890123', 7755, 'Economy', 3400),
+        ('1234567890123', 30826, 'Economy', 12800)
+RETURNING *)
+UPDATE tickets_directions td
+SET last_ticket_time = current_timestamp,
+    tickets_num_economy = tickets_num_economy + (SELECT count(*)
+                                    FROM sell_tickets st, flights_v f
+                                    WHERE st.flight_id = f.flight_id
+                                        AND f.departure_city = td.departure_city
+                                        AND f.arrival_city = td.arrival_city
+                                        AND st.fare_conditions = 'Economy'),
+    tickets_num_comfort = tickets_num_comfort + (SELECT count(*)
+                                    FROM sell_tickets st, flights_v f
+                                    WHERE st.flight_id = f.flight_id
+                                        AND f.departure_city = td.departure_city
+                                        AND f.arrival_city = td.arrival_city
+                                        AND st.fare_conditions = 'Comfort'),
+    tickets_num_business = tickets_num_business + (SELECT count(*)
+                                    FROM sell_tickets st, flights_v f
+                                    WHERE st.flight_id = f.flight_id
+                                        AND f.departure_city = td.departure_city
+                                        AND f.arrival_city = td.arrival_city
+                                        AND st.fare_conditions = 'Business')
+WHERE (td.departure_city, td.arrival_city) IN
+    (SELECT departure_city, arrival_city FROM flights_v
+        WHERE flight_id IN (SELECT flight_id FROM sell_tickets));
+
+
+WITH aircrafts_seats AS
+(SELECT aircraft_code, model, seats_num,
+    rank() OVER(PARTITION BY left(model, strpos(model, ' ') - 1)
+                    ORDER BY seats_num)
+FROM (SELECT a.aircraft_code, a.model, count(*) AS seats_num
+        FROM aircrafts_tmp a, seats s
+        WHERE a.aircraft_code = s.aircraft_code
+        GROUP BY 1, 2) AS seats_numbers)
+DELETE FROM aircrafts_tmp a
+USING aircrafts_seats a_s
+WHERE a.aircraft_code = a_s.aircraft_code
+    AND left(a.model, strpos(a.model, ' ') - 1)
+        IN ('Боинг', 'Аэробус')
+    AND a_s.rank = 1
+RETURNING *;
+SELECT * FROM aircrafts_tmp;
+
+
+WITH aircrafts_seats AS
+(SELECT aircraft_code, model, seats_num,
+    rank() OVER(PARTITION BY left(model, strpos(model, ' ') - 1)
+                    ORDER BY seats_num)
+FROM (SELECT a.aircraft_code, a.model, count(*) AS seats_num
+        FROM aircrafts_tmp a, seats s
+        WHERE a.aircraft_code = s.aircraft_code
+        GROUP BY 1, 2) AS seats_numbers)
+DELETE FROM aircrafts_tmp
+WHERE aircraft_code IN (SELECT aircraft_code FROM aircrafts_seats
+                            WHERE left(model, strpos(model, ' ') - 1) IN ('Боинг', 'Аэробус')
+                            AND rank = 1)
+RETURNING *;
+
+CREATE TABLE seats_tmp AS
+SELECT * FROM seats;
+
+
+INSERT INTO seats_tmp(aircraft_code, seat_no, fare_conditions)
+SELECT aircraft_code, seat_row || letter, fare_conditions
+FROM (VALUES ('SU9', 3, 20, 'F'),
+                ('773', 5, 30, 'I'),
+                ('763', 4, 25, 'H'),
+                ( '733', 3, 20, 'F' ),
+                ( '320', 5, 25, 'F' ),
+                ( '321', 4, 20, 'F' ),
+                ( '319', 3, 20, 'F' ),
+                ( 'CN1', 0, 10, 'B' ),
+                ( 'CR2', 2, 15, 'D' ))
+AS aircraft_info (aircraft_code, max_seat_row_business,
+                    max_seat_row_economy, max_letter)
+CROSS JOIN (VALUES ('Business'), ('Economy')) AS fare_conditions (fare_conditions)
+CROSS JOIN (SELECT * FROM generate_series(1,30))
+AS seat_rows (seat_row)
+CROSS JOIN (VALUES ( 'A' ), ( 'B' ), ( 'C' ), ( 'D' ), ( 'E' ),
+( 'F' ), ( 'G' ), ( 'H' ), ( 'I' )) AS letters (letter)
+WHERE
+    CASE WHEN fare_conditions = 'Business' THEN seat_row::integer <= max_seat_row_business AND letter <= CHR(ASCII(max_letter )- 2)
+        WHEN fare_conditions = 'Economy' THEN seat_row::integer > max_seat_row_business
+            AND seat_row::integer <= max_seat_row_economy
+    END
+    AND letter <= max_letter;
+
