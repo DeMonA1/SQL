@@ -1954,3 +1954,52 @@ WHERE
     END
     AND letter <= max_letter;
 
+
+
+
+--------------------INDEXES----------------------
+CREATE INDEX ON airports1(airport_name);
+
+SELECT count(*) FROM tickets WHERE passenger_name = 'IVAN IVANOV';
+
+CREATE INDEX passenger_name ON tickets (passenger_name);
+DROP INDEX passenger_name;
+CREATE INDEX tickets_book_ref_test_key ON tickets (book_ref);
+
+SELECT * FROM tickets ORDER BY book_ref LIMIT 5;
+DROP INDEX tickets_book_ref_test_key;
+
+CREATE UNIQUE INDEX aircrafts_unique_model_key ON aircrafts_data (model);
+CREATE UNIQUE INDEX databases_unique_model_key ON databases(lower(dbms_name));
+
+INSERT INTO databases VALUES('true', 'PostGRESQL');
+
+SELECT * FROM bookings WHERE total_amount > 1000000 ORDER BY book_date DESC;
+
+CREATE INDEX bookings_book_date_part_key ON bookings (book_date)
+WHERE total_amount > 1000000;
+
+SELECT count(*) FROM ticket_flights WHERE fare_conditions = 'Comfort';
+
+SELECT count(*) FROM ticket_flights WHERE fare_conditions = 'Business';
+
+SELECT count(*) FROM ticket_flights WHERE fare_conditions = 'Economy';
+
+CREATE INDEX fare_cond ON ticket_flights(fare_conditions);
+
+CREATE INDEX test_1 ON bookings(book_ref ASC NULLS FIRST, book_date DESC NULLS LAST);
+DROP INDEX test_1;
+
+SELECT * FROM tickets WHERE passenger_id = '2014 769496';
+
+CREATE INDEX ON tickets(passenger_id, passenger_name);
+
+CREATE INDEX ON aircrafts_data (aircraft_code, model) WHERE range > 5000 AND aircraft_code IN ('773', 'CN1', 'CR2', '763');
+
+SELECT aircraft_code, model FROM aircrafts_data WHERE range > 5000 AND aircraft_code IN ('773');
+
+DROP INDEX bookings_book_date_part_key;
+
+CREATE INDEX bookings_book_date_part_key ON bookings (total_amount);
+
+SELECT * FROM tickets WHERE left(passenger_id, 4)::integer < 2001;
