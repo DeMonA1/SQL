@@ -757,3 +757,180 @@ UPDATE pilot_hobbies SET hobbies = hobbies || '{"exp" : 5}'
 WHERE pilot_name = 'Boris';
 UPDATE pilot_hobbies SET hobbies = hobbies - 'exp'
 WHERE pilot_name = 'Boris';
+
+
+---------------TRANSACTIONS------------------------
+SHOW default_transaction_isolation;
+DROP TABLE aircrafts_tmp;
+CREATE TABLE aircrafts_tmp AS SELECT * FROM aircrafts;
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SHOW transaction_isolation;
+UPDATE aircrafts_tmp
+SET range = range + 100 WHERE aircraft_code = 'SU9';
+SELECT * FROM aircrafts_tmp WHERE aircraft_code = 'SU9';
+ROLLBACK;
+
+
+BEGIN ISOLATION LEVEL READ COMMITTED;
+SHOW transaction_isolation;
+UPDATE aircrafts_tmp
+SET range = range + 100 WHERE aircraft_code = 'SU9';
+SELECT * FROM aircrafts_tmp WHERE aircraft_code = 'SU9';
+COMMIT;
+
+BEGIN;
+SELECT * FROM aircrafts_tmp;
+END;
+
+
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+SELECT * FROM aircrafts_tmp;
+END;
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+UPDATE aircrafts_tmp SET range = range + 100 WHERE aircraft_code = '320';
+END;
+SELECT * FROM aircrafts_tmp WHERE aircraft_code = '320';
+
+
+CREATE TABLE modes(
+    num INTEGER,
+    mode TEXT
+);
+INSERT INTO modes VALUES (1, 'LOW'), (2, 'HIGH');
+SELECT * FROM modes;
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+UPDATE modes SET mode = 'HIGH' WHERE mode = 'LOW' RETURNING *;
+COMMIT;
+END;
+
+
+BEGIN;
+INSERT INTO bookings (book_ref, book_date, total_amount)
+VALUES ('ABC123', bookings.now(), 0);
+INSERT INTO tickets (ticket_no, book_ref, passenger_id, passenger_name)
+VALUES ('9991234567890', 'ABC123', '1234 123456', 'IVAN PETROV');
+INSERT INTO tickets (ticket_no, book_ref, passenger_id, passenger_name)
+VALUES ('9991234567891', 'ABC123', '4321 654321', 'PETR IVANOV');
+INSERT INTO ticket_flights (ticket_no, flight_id, fare_conditions, amount)
+VALUES ('9991234567890', 5572, 'Business', 12500),
+        ('9991234567890', 13881, 'Economy', 8500);
+INSERT INTO ticket_flights (ticket_no, flight_id, fare_conditions, amount)
+VALUES ('9991234567891', 5572, 'Business', 12500),
+        ('9991234567891', 13881, 'Economy', 8500);
+
+UPDATE bookings SET total_amount = (
+    SELECT sum(amount) FROM ticket_flights
+    WHERE ticket_no IN (
+        SELECT ticket_no FROM tickets WHERE book_ref = 'ABC123'))
+WHERE book_ref = 'ABC123';
+
+SELECT * FROM bookings WHERE book_ref = 'ABC123';
+COMMIT;
+
+
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT * FROM aircrafts_tmp WHERE model ~ '^Аэро' FOR UPDATE;
+UPDATE aircrafts_tmp SET range = 5800 WHERE aircraft_code = '320';
+END;
+
+
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+LOCK TABLE aircrafts_tmp IN ACCESS EXCLUSIVE MODE;
+ROLLBACK;
+
+
+BEGIN;
+SELECT * FROM aircrafts_tmp WHERE range < 3000;
+UPDATE aircrafts_tmp SET range = 2100 WHERE aircraft_code = 'CN1';
+UPDATE aircrafts_tmp SET range = 1900 WHERE aircraft_code = 'CR2';
+COMMIT;
+ROLLBACK;
+SELECT * FROM aircrafts_tmp;
+
+
+BEGIN;
+SELECT * FROM aircrafts_tmp WHERE range > 6000;
+END;
+
+
+BEGIN;
+SELECT * FROM aircrafts_tmp WHERE aircraft_code IN ('773', '763', 'SU9') FOR UPDATE;
+
+BEGIN;
+SELECT * FROM aircrafts_tmp WHERE aircraft_code IN ('773', '763', 'SU9') FOR SHARE;
+
+CREATE TABLE modes AS
+SELECT num::INTEGER, 'LOW' || num::text AS mode
+    FROM generate_series(1, 100000) AS gen_ser(num)
+UNION ALL
+SELECT num::integer, 'HIGH' || (num - 100000)::text AS mode
+    FROM generate_series (100001, 200000) AS gen_ser(num);
+
+CREATE INDEX modes_ind ON modes (num);
+
+SELECT * FROM modes WHERE mode IN ('LOW1', 'HIGH1');
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+UPDATE modes SET mode = 'HIGH1' WHERE num = 1;
+COMMIT;
+
+
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SELECT * FROM ticket_flights WHERE flight_id = 5572;
+INSERT INTO bookings(book_ref, book_date, total_amount)
+VALUES('ABC126', bookings.now(), 0);
+INSERT INTO tickets(ticket_no, book_ref, passenger_id, passenger_name)
+VALUES('7891234567890', 'ABC126', '1234 123456', 'IVAN PETROV');
+INSERT INTO ticket_flights(ticket_no, flight_id, fare_conditions, amount)
+VALUES('7891234567890', 13881, 'Business', 12500);
+
+UPDATE bookings SET total_amount = 12500
+WHERE book_ref = 'ABC126';
+COMMIT;
+
+
+EXPLAIN SELECT * FROM aircrafts;
+EXPLAIN (COSTS OFF) SELECT * FROM aircrafts;
+EXPLAIN SELECT * FROM aircrafts WHERE model ~ 'Аэр'; 
+EXPLAIN SELECT * FROM aircrafts ORDER BY aircraft_code;
+EXPLAIN SELECT * FROM bookings ORDER BY book_ref;
+EXPLAIN SELECT * FROM bookings WHERE book_ref > '0000FF' AND
+    book_ref < '000FFF' ORDER BY book_ref;
+
+EXPLAIN SELECT * FROM seats WHERE aircraft_code = 'SU9';
+EXPLAIN SELECT book_ref FROM bookings WHERE book_ref < '000FFF'
+ORDER BY book_ref;
+EXPLAIN SELECT count(*) FROM seats WHERE aircraft_code = 'SU9';
+EXPLAIN SELECT avg(total_amount) FROM bookings;
+
+
+
+EXPLAIN SELECT a.aircraft_code, a.model,
+                s.seat_no, s.fare_conditions
+FROM seats s
+JOIN aircrafts a ON s.aircraft_code = a.aircraft_code
+WHERE a.model ~ '^Аэро' ORDER BY s.seat_no;
+
+EXPLAIN SELECT r.flight_no, r.departure_airport_name,
+                r.arrival_airport_name, a.model
+FROM routes r
+JOIN aircrafts a ON r.aircraft_code = a.aircraft_code
+ORDER BY flight_no;
+
+EXPLAIN SELECT t.ticket_no, t.passenger_name,
+                tf.flight_id, tf.amount
+FROM tickets t
+JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
+ORDER BY t.ticket_no;
+
+SET enable_hashjoin = on;
+SET enable_mergejoin = ON;
+SET enable_nestloop = on;
+
+EXPLAIN ANALYZE
+SELECT t.ticket_no, t.passenger_name,
+                tf.flight_id, tf.amount
+FROM tickets t
+JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
+ORDER BY t.ticket_no;
