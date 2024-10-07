@@ -934,3 +934,140 @@ SELECT t.ticket_no, t.passenger_name,
 FROM tickets t
 JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
 ORDER BY t.ticket_no;
+
+
+EXPLAIN ANALYZE
+SELECT b.book_ref, sum(tf.amount)
+FROM bookings b, tickets t, ticket_flights tf
+WHERE b.book_ref = t.book_ref AND t.ticket_no = tf.ticket_no
+GROUP BY 1
+ORDER BY 1;
+
+EXPLAIN ANALYZE
+SELECT book_ref, total_amount FROM bookings
+ORDER BY 1;
+
+EXPLAIN ANALYZE
+SELECT EXTRACT(month FROM book_date) AS month,
+    avg(total_amount) AS avg
+FROM bookings
+GROUP BY (EXTRACT(month FROM book_date));
+
+EXPLAIN ANALYZE
+SELECt * FROM average;
+
+
+
+CREATE TEMP TABLE flights_tt AS
+SELECT * FROM flights_v;
+
+EXPLAIN ANALYZE
+SELECT count(*) FROM flights_v GROUP BY date_trunc('month',scheduled_departure);
+
+EXPLAIN ANALYZE
+SELECT count(*) FROM flights_tt GROUP BY date_trunc('month',scheduled_departure);
+
+CREATE TEMP TABLE aircrafts_tt
+AS
+( SELECT aircraft_code,
+    (model ->> lang()) AS model,
+    range
+   FROM aircrafts_data ml);
+
+EXPLAIN ANALYZE
+SELECT * FROM aircrafts_tt;
+EXPLAIN ANALYZE
+SELECT * FROM aircrafts;
+
+
+EXPLAIN ANALYZE
+SELECT count(*) FROM tickets
+WHERE passenger_name = 'IVAN IVANOV';
+
+DROP INDEX tickets_book_ref_key;
+CREATE INDEX tickets_book_ref_key ON bookings.tickets USING btree ("book_ref");
+
+EXPLAIN ANALYZE
+SELECT * FROM tickets WHERE book_ref = '0C3A72';
+
+
+
+EXPLAIN ANALYZE
+SELECT num_tickets, count(*) AS num_bookings
+FROM (SELECT b.book_ref, count(*) FROM tickets t, bookings b
+        WHERE t.book_ref = b.book_ref
+        AND date_trunc('mon', book_date) = '2016-09-01'
+        GROUP BY b.book_ref
+    ) AS count_tickets(book_ref, num_tickets)
+GROUP BY num_tickets
+ORDER BY num_tickets DESC;
+
+SET enable_hashjoin = On;
+SET enable_nestloop = on;
+
+
+
+CREATE TABLE nulls AS
+SELECT num::INTEGER, 'TEXT' || num::TEXT AS txt
+FROM generate_series(1, 200000) AS gen_ser(num);
+CREATE INDEX nulls_ind ON nulls(num);
+INSERT INTO nulls VALUES(NULL, 'TEXT');
+EXPLAIN
+SELECT * FROM nulls ORDER BY num;
+SELECT * FROM nulls ORDER BY num OFFSET 199995;
+EXPLAIN SELECT * FROM nulls ORDER BY num NULLS FIRST;
+EXPLAIN ANALYZE SELECT * FROM nulls ORDER BY num DESC NULLS FIRST;
+EXPLAIN ANALYZE SELECT * FROM nulls ORDER BY num DESC NULLS LAST;
+
+
+SET enable_hashjoin = on;
+SET enable_mergejoin = on;
+SET enable_nestloop = on;
+SET enable_seqscan = on;
+SET enable_indexscan = on;
+
+EXPLAIN ANALYZE
+SELECT a.model, count(*)
+FROM aircrafts a, seats s
+WHERE a.aircraft_code = s.aircraft_code
+GROUP BY a.aircraft_code, a.model;
+
+SET jit = true;
+SET geqo = true;
+EXPLAIN ANALYZE
+SELECT departure_city, count(*)
+FROM routes
+GROUP BY departure_city 
+HAVING departure_city = ANY (
+    SELECT city FROM airports
+    WHERE coordinates[1] > 60
+)
+ORDER BY count DESC;
+SELECT attname, inherited, n_distinct,
+       array_to_string(most_common_vals, E'\n') as most_common_vals
+FROM pg_stats
+WHERE tablename = 'seats';
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT t.passenger_name, b.seat_no
+FROM (ticket_flights tf
+        JOIN tickets t ON tf.ticket_no = t.ticket_no)
+JOIN boarding_passes b
+ON tf.ticket_no = b.ticket_no
+AND tf.flight_id = b.flight_id
+WHERE tf.flight_id = 27584
+ORDER BY t.passenger_name;
+
+
+CREATE TEMP TABLE test_ (
+    num INTEGER,
+    tex TEXT
+);
+
+CREATE INDEX index ON test_(num);
+BEGIN; ROLLBACK;
+EXPLAIN (ANALYZE, BUFFERS)
+INSERT INTO test_ (
+    SELECT num::INTEGER, num::text || 'TEXT' as mode
+    FROM generate_series(1, 100000) AS gen_ser(num)
+);
