@@ -991,6 +991,41 @@ EXPLAIN ANALYZE
 SELECT * FROM tickets WHERE book_ref = '0C3A72';
 
 
+SELECT t.ticket_no, t.passenger_name,
+        tf.flight_id, tf.amount
+FROM tickets t
+JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
+WHERE amount > 50000
+ORDER BY t.ticket_no;
+
+EXPLAIN (ANALYZE, COSTS OFF)
+SELECT t.ticket_no, t.passenger_name,
+        tf.flight_id, tf.amount
+FROM tickets t
+JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
+WHERE amount > 50000
+ORDER BY t.ticket_no;
+
+BEGIN;
+EXPLAIN (ANALYZE, COSTS OFF)
+UPDATE aircrafts SET range = range + 100
+WHERE model ~ '^Аэро';
+ROLLBACK;
+
+ANALYZE aircrafts;
+
+EXPLAIN ANALYZE
+SELECT num_tickets, count(*) AS num_bookings
+FROM (SELECT b.book_ref, (SELECT count(*) FROM tickets t
+                            WHERE t.book_ref = b.book_ref)
+        FROM bookings b
+        WHERE date_trunc('mon', book_date) = '2016-09-01'
+    ) AS count_tickets(book_ref, num_tickets)
+GROUP BY num_tickets
+ORDER BY num_tickets DESC;
+
+CREATE INDEX tickets_book_ref_key ON tickets(book_ref);
+
 
 EXPLAIN ANALYZE
 SELECT num_tickets, count(*) AS num_bookings
@@ -1071,3 +1106,98 @@ INSERT INTO test_ (
     SELECT num::INTEGER, num::text || 'TEXT' as mode
     FROM generate_series(1, 100000) AS gen_ser(num)
 );
+
+EXPLAIN SELECT * FROM bookings ORDER BY book_ref;
+EXPLAIN SELECT * FROM aircrafts_data ORDER BY aircraft_code;
+
+EXPLAIN
+WITH sdd AS
+(SELECT * FROM aircrafts_data
+WHERE aircraft_code IN ('CR2', '733', 'CN1'))
+SELECT * FROM sdd WHERE (model ->> 'en')::VARCHAR ~ '^Boe';
+
+EXPLAIN
+SELECT total_amount FROM bookings
+ORDER BY total_amount DESC LIMIT 5;
+
+EXPLAIN
+SELECT city, count(*) FROM airports_data
+GROUP BY city HAVING count(*) > 1;
+
+EXPLAIN
+SELECT book_ref, rank() OVER (PARTITION BY date_trunc('month', book_date) ORDER BY total_amount)  as rank FROM bookings;
+
+BEGIN;
+EXPLAIN
+INSERT INTO bookings VALUES ('99999', current_timestamp, 3213);
+EXPLAIN
+DELETE FROM bookings WHERE book_ref = '99999';
+ROLLBACK;
+
+EXPLAIN ANALYZE
+SELECT a.aircraft_code AS a_code, a.model,
+        (SELECT count(r.aircraft_code) FROM routes r
+            WHERE r.aircraft_code = a.aircraft_code) AS num_routes
+FROM aircrafts a
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+EXPLAIN ANALYZE
+SELECT a.aircraft_code AS a_code, a.model,
+        count(r.aircraft_code) AS num_routes
+FROM aircrafts a
+LEFT OUTER JOIN routes r ON r.aircraft_code = a.aircraft_code
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+EXPLAIN ANALYZE
+SELECT a.aircraft_code, a.model, (SELECT count(*) FROM seats s WHERE s.aircraft_code = a.aircraft_code) as num_seats
+FROM aircrafts a ORDER BY num_seats DESC;
+
+EXPLAIN ANALYZE
+SELECT a.aircraft_code, a.model, count(*) FROM aircrafts a, seats s
+WHERE a.aircraft_code = s.aircraft_code
+GROUP BY 1, 2 ORDER BY 3;
+
+
+EXPLAIN ANALYZE
+SELECT * FROM routes_mat;
+EXPLAIN ANALYZE
+WITH f3 AS (
+         SELECT f2.flight_no,
+            f2.departure_airport,
+            f2.arrival_airport,
+            f2.aircraft_code,
+            f2.duration,
+            array_agg(f2.days_of_week) AS days_of_week
+           FROM ( SELECT f1.flight_no,
+                    f1.departure_airport,
+                    f1.arrival_airport,
+                    f1.aircraft_code,
+                    f1.duration,
+                    f1.days_of_week
+                   FROM ( SELECT flights.flight_no,
+                            flights.departure_airport,
+                            flights.arrival_airport,
+                            flights.aircraft_code,
+                            (flights.scheduled_arrival - flights.scheduled_departure) AS duration,
+                            (to_char(flights.scheduled_departure, 'ID'::text))::integer AS days_of_week
+                           FROM flights) f1
+                  GROUP BY f1.flight_no, f1.departure_airport, f1.arrival_airport, f1.aircraft_code, f1.duration, f1.days_of_week
+                  ORDER BY f1.flight_no, f1.departure_airport, f1.arrival_airport, f1.aircraft_code, f1.duration, f1.days_of_week) f2
+          GROUP BY f2.flight_no, f2.departure_airport, f2.arrival_airport, f2.aircraft_code, f2.duration
+        )
+ SELECT f3.flight_no,
+    f3.departure_airport,
+    dep.airport_name AS departure_airport_name,
+    dep.city AS departure_city,
+    f3.arrival_airport,
+    arr.airport_name AS arrival_airport_name,
+    arr.city AS arrival_city,
+    f3.aircraft_code,
+    f3.duration,
+    f3.days_of_week
+   FROM f3,
+    airports dep,
+    airports arr
+  WHERE ((f3.departure_airport = dep.airport_code) AND (f3.arrival_airport = arr.airport_code));
